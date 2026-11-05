@@ -161,6 +161,9 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: v
 .lessons { list-style: none; margin: 0; padding: 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
 .lessons li { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line); border-left: 4px solid var(--c); }
 .lessons li:first-child { border-top: 0; }
+.lessons li { box-shadow: inset 0 -3px 0 var(--g, transparent); }
+.legend.groups { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.legend.groups span { display: inline-flex; align-items: center; gap: 6px; }
 .lessons .ln { width: 18px; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
 .lessons a { flex: 1; color: var(--text); text-decoration: none; font-weight: 600; min-width: 0; }
 .lessons .lr { font-size: 13px; color: var(--muted); white-space: nowrap; }

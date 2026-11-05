@@ -30,12 +30,13 @@ const SUBJECTS = [
 ];
 // Розділи вкладки «Предмети» (і порядок предметів скрізь на сайті)
 const GROUPS = [
-  ["Найголовніші", ["Алгебра", "УкрМова", "Укр", "Англ", "ІсторіяУкр", "Геометрія"]],
-  ["Основні", ["УкрЛіт", "ВсесвІст", "Фізика", "Хімія", "Біологія"]],
-  ["Просто уроки", ["Нім", "Ісп", "ЗарЛіт", "ГО", "ФГ", "Геогр"]],
-  ["Уроки-відпочинки", ["ФізРа", "Мистецтво", "Технології", "ЗБД", "Інформатика"]],
+  ["Найголовніші", "#e03131", ["Алгебра", "УкрМова", "Укр", "Англ", "ІсторіяУкр", "Геометрія"]],
+  ["Основні", "#f76707", ["УкрЛіт", "ВсесвІст", "Фізика", "Хімія", "Біологія"]],
+  ["Просто уроки", "#f2b705", ["Нім", "Ісп", "ЗарЛіт", "ГО", "ФГ", "Геогр"]],
+  ["Уроки-відпочинки", "#2f9e44", ["ФізРа", "Мистецтво", "Технології", "ЗБД", "Інформатика"]],
 ];
-const ORDER = GROUPS.flatMap(([, tags]) => tags);
+const ORDER = GROUPS.flatMap(([, , tags]) => tags);
+const groupColor = (t) => (GROUPS.find(([, , tags]) => tags.includes(t)) || [])[1] || "transparent";
 // На сторінці предмета показуються ще й ДЗ цих предметів
 const ALSO = { "ІсторіяУкр": ["ГО"] };
 const tagsOf = (t) => [t, ...(ALSO[t] || [])];
@@ -213,10 +214,11 @@ function dayTable(s) {
   }
   return `<ol class="lessons">${ls.map(([n, tag, r]) => {
     const b = bell(n);
-    return `<li style="--c:${subj(tag).color}"><span class="ln">${n}</span>
+    return `<li style="--c:${subj(tag).color};--g:${groupColor(tag)}"><span class="ln">${n}</span>
       <a href="#/s/${encodeURIComponent(tag)}">${esc(subj(tag).name)}</a>
       <span class="lr">${b ? `${b[0]}–${b[1]} · ` : ""}${room(r)}</span></li>`;
-  }).join("")}</ol>`;
+  }).join("")}</ol>
+    <p class="legend groups">${GROUPS.map(([name, c]) => `<span><i class="dot" style="--c:${c}"></i>${esc(name)}</span>`).join("")}</p>`;
 }
 
 let calMonth = null, calSel = null;
@@ -262,7 +264,7 @@ function subjects() {
     return `<a class="tile${k ? "" : " none"}" style="--c:${s.color}" href="#/s/${encodeURIComponent(t)}">
       <b>${esc(s.name)}</b><span>${k ? `${k} ${plural(k)}` : "ДЗ поки немає"}${book}</span></a>`;
   };
-  const groups = GROUPS.map(([name, tags]) =>
+  const groups = GROUPS.map(([name, , tags]) =>
     `<h2 class="group">${esc(name)}</h2><div class="tiles">${tags.map(tile).join("")}</div>`).join("");
   return `<h1>Предмети</h1><p class="sub">Розклад, підручник і всі ДЗ предмета.</p>${groups}`;
 }
