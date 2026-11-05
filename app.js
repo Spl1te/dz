@@ -95,7 +95,7 @@ const byDue = () => {
 const plan = (s) => SCHOOL.days[s] || [];
 const bell = (n) => SCHOOL.bells[n - 1];
 const teacher = (t) => SCHOOL.teachers[t] || "поки не знаю";
-const room = (r) => (r ? `каб. ${esc(r)}` : "каб. —");
+const room = (r, tag) => (tag === "ФізРа" ? "зал" : r ? `каб. ${esc(r)}` : "—");
 const bookUrl = (slug, page) => `books/${encodeURIComponent(slug)}.pdf${page ? `#page=${page}` : ""}`;
 const rank = (t) => { const i = ORDER.indexOf(t); return i < 0 ? 999 : i; };
 const sortSubj = (list) => [...list].sort((a, b) => rank(a.tag) - rank(b.tag));
@@ -137,7 +137,7 @@ function nextSchoolDay(from) {
 function lessonLine(l, withTime = true) {
   const [n, tag, r] = l;
   const b = bell(n);
-  return `<span class="who">${room(r)} · вчитель: ${esc(teacher(tag))}${withTime && b ? ` · ${b[0]}–${b[1]}` : ""}</span>`;
+  return `<span class="who">${room(r, tag)} · вчитель: ${esc(teacher(tag))}${withTime && b ? ` · ${b[0]}–${b[1]}` : ""}</span>`;
 }
 function nowState() {
   if (!SCHOOL.bells.length) return null;
@@ -216,7 +216,7 @@ function dayTable(s) {
     const b = bell(n);
     return `<li style="--c:${subj(tag).color};--g:${groupColor(tag)}"><span class="ln">${n}</span>
       <a href="#/s/${encodeURIComponent(tag)}">${esc(subj(tag).name)}<i class="gdot"></i></a>
-      <span class="lr">${b ? `${b[0]}–${b[1]} · ` : ""}${room(r)}</span></li>`;
+      <span class="lr">${b ? `${b[0]}–${b[1]} · ` : ""}${room(r, tag)}</span></li>`;
   }).join("")}</ol>
     <p class="legend groups">${GROUPS.map(([name, c]) => `<span><i class="dot" style="--c:${c}"></i>${esc(name)}</span>`).join("")}</p>`;
 }
@@ -288,7 +288,7 @@ function subject(tag) {
   const up = upcomingLessons(tag);
   const upHtml = up.length ? `<ul class="up">${up.map(([d, [n, , r]]) => {
     const b = bell(n);
-    return `<li><b>${WD_TINY[parse(d).getDay()]} ${short(d)}</b> · ${n} урок${b ? ` (${b[0]})` : ""} · ${room(r)}</li>`;
+    return `<li><b>${WD_TINY[parse(d).getDay()]} ${short(d)}</b> · ${n} урок${b ? ` (${b[0]})` : ""} · ${room(r, tag)}</li>`;
   }).join("")}</ul>` : `<p class="muted">У розкладі цього предмета немає.</p>`;
   return `<a class="back" href="#/s">‹ Предмети</a>
     <h1 style="color:${s.color}">${esc(s.name)}</h1>
