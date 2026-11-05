@@ -28,6 +28,17 @@ const SUBJECTS = [
   ["Мистецтво", "Мистецтво", "#f06595"],
   ["ФізРа", "Фізкультура", "#495057"],
 ];
+// Розділи вкладки «Предмети» (і порядок предметів скрізь на сайті)
+const GROUPS = [
+  ["Найголовніші", ["Алгебра", "УкрМова", "Укр", "Англ", "ІсторіяУкр", "Геометрія"]],
+  ["Основні", ["УкрЛіт", "ВсесвІст", "Фізика", "Хімія", "Біологія"]],
+  ["Просто уроки", ["Нім", "Ісп", "ЗарЛіт", "ГО", "ФГ", "Геогр"]],
+  ["Уроки-відпочинки", ["ФізРа", "Мистецтво", "Технології", "ЗБД", "Інформатика"]],
+];
+const ORDER = GROUPS.flatMap(([, tags]) => tags);
+// На сторінці предмета показуються ще й ДЗ цих предметів
+const ALSO = { "ІсторіяУкр": ["ГО"] };
+const tagsOf = (t) => [t, ...(ALSO[t] || [])];
 const S = Object.fromEntries(SUBJECTS.map(([t, n, c]) => [t, { name: n, color: c }]));
 const subj = (t) => S[t] || { name: t || "Загальне", color: "#868e96" };
 
@@ -85,8 +96,8 @@ const bell = (n) => SCHOOL.bells[n - 1];
 const teacher = (t) => SCHOOL.teachers[t] || "поки не знаю";
 const room = (r) => (r ? `каб. ${esc(r)}` : "каб. —");
 const bookUrl = (slug, page) => `books/${encodeURIComponent(slug)}.pdf${page ? `#page=${page}` : ""}`;
-const sortSubj = (list) => [...list].sort((a, b) =>
-  SUBJECTS.findIndex((x) => x[0] === a.tag) - SUBJECTS.findIndex((x) => x[0] === b.tag));
+const rank = (t) => { const i = ORDER.indexOf(t); return i < 0 ? 999 : i; };
+const sortSubj = (list) => [...list].sort((a, b) => rank(a.tag) - rank(b.tag));
 
 // ---------- картка ДЗ ----------
 function card(e, { showSubj = true } = {}) {
@@ -243,14 +254,17 @@ function cal() {
 function subjects() {
   const count = {};
   for (const e of ALL) count[e.tag] = (count[e.tag] || 0) + 1;
-  const tiles = SUBJECTS.map(([t, n, c]) => {
-    const k = count[t] || 0;
-    if ((t === "Укр" || t === "Ісп") && !k) return "";
+  const tile = (t) => {
+    const s = subj(t);
+    const k = tagsOf(t).reduce((n, x) => n + (count[x] || 0), 0);
+    if (t === "Укр" && !k) return "";
     const book = SCHOOL.books[t] ? `<i class="tile-book" title="Є підручник">📖</i>` : "";
-    return `<a class="tile${k ? "" : " none"}" style="--c:${c}" href="#/s/${encodeURIComponent(t)}">
-      <b>${esc(n)}</b><span>${k ? `${k} ${plural(k)}` : "ДЗ поки немає"}${book}</span></a>`;
-  }).join("");
-  return `<h1>Предмети</h1><p class="sub">Розклад, підручник і всі ДЗ предмета.</p><div class="tiles">${tiles}</div>`;
+    return `<a class="tile${k ? "" : " none"}" style="--c:${s.color}" href="#/s/${encodeURIComponent(t)}">
+      <b>${esc(s.name)}</b><span>${k ? `${k} ${plural(k)}` : "ДЗ поки немає"}${book}</span></a>`;
+  };
+  const groups = GROUPS.map(([name, tags]) =>
+    `<h2 class="group">${esc(name)}</h2><div class="tiles">${tags.map(tile).join("")}</div>`).join("");
+  return `<h1>Предмети</h1><p class="sub">Розклад, підручник і всі ДЗ предмета.</p>${groups}`;
 }
 
 function upcomingLessons(tag, n = 5) {
@@ -265,7 +279,8 @@ function upcomingLessons(tag, n = 5) {
 
 function subject(tag) {
   const s = subj(tag);
-  const list = ALL.filter((e) => e.tag === tag).sort((a, b) => (b.given + (b.added || "")).localeCompare(a.given + (a.added || "")));
+  const extra = ALSO[tag] || [];
+  const list = ALL.filter((e) => tagsOf(tag).includes(e.tag)).sort((a, b) => (b.given + (b.added || "")).localeCompare(a.given + (a.added || "")));
   const book = SCHOOL.books[tag];
   const files = FILES.filter((f) => f.tag === tag);
   const up = upcomingLessons(tag);
@@ -275,7 +290,7 @@ function subject(tag) {
   }).join("")}</ul>` : `<p class="muted">У розкладі цього предмета немає.</p>`;
   return `<a class="back" href="#/s">‹ Предмети</a>
     <h1 style="color:${s.color}">${esc(s.name)}</h1>
-    <p class="sub">Вчитель: ${esc(teacher(tag))}</p>
+    <p class="sub">Вчитель: ${esc(teacher(tag))}${extra.length ? ` · + ${extra.map((x) => esc(subj(x).name)).join(", ")}` : ""}</p>
     <div class="subj-info">
       <section><h3>Найближчі уроки</h3>${upHtml}</section>
       <section><h3>Підручник</h3>${book
@@ -284,7 +299,7 @@ function subject(tag) {
         ${files.length ? `<h3>Файли</h3>${fileList(files)}` : ""}</section>
     </div>
     <h2>ДЗ ${list.length ? `<span class="muted">· ${list.length}</span>` : ""}</h2>
-    ${list.length ? list.map((e) => card(e, { showSubj: false })).join("") : `<div class="empty">З цього предмета ще нічого не задавали.</div>`}`;
+    ${list.length ? list.map((e) => card(e, { showSubj: e.tag !== tag })).join("") : `<div class="empty">З цього предмета ще нічого не задавали.</div>`}`;
 }
 
 function fileList(files) {
@@ -293,7 +308,8 @@ function fileList(files) {
 }
 
 function filesPage() {
-  const books = SUBJECTS.filter(([t]) => SCHOOL.books[t]).map(([t, n, c]) =>
+  const books = sortSubj(SUBJECTS.map(([t, n, c]) => ({ tag: t, n, c }))).map(({ tag, n, c }) => [tag, n, c])
+    .filter(([t]) => SCHOOL.books[t]).map(([t, n, c]) =>
     `<li><a href="${bookUrl(SCHOOL.books[t].slug)}" target="_blank" rel="noopener" style="--c:${c}"><b><i class="ic">📖</i>${esc(n)}</b><span>PDF · відкрити</span></a></li>`).join("");
   const teach = [...FILES].sort((a, b) => b.added.localeCompare(a.added));
   return `<h1>Файли</h1><p class="sub">Підручники й файли від учителів.</p>

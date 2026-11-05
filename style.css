@@ -115,6 +115,8 @@ h2 { font-size: 17px; margin: 28px 0 10px; color: var(--muted); font-weight: 650
 .legend { font-size: 13px; color: var(--muted); margin-top: 8px; }
 
 /* предмети */
+.group { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 22px 0 10px; }
+.group:first-of-type { margin-top: 14px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .tile {
   background: var(--card); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow);
