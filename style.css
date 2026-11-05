@@ -61,7 +61,42 @@ a { color: var(--accent); }
   .top { display: flex; align-items: center; gap: 32px; padding-bottom: 0; }
   .tabs { margin: 0; padding: 0; }
   .tabs a { flex: 0 0 auto; padding: 16px 12px; }
+  .tabs { padding-right: 0; }
+  .top .more { position: static; margin-left: auto; }
 }
+.tabs { padding-right: 56px; }
+.more {
+  position: absolute; right: 8px; bottom: 4px;
+  width: 40px; height: 40px; border: 0; border-radius: 10px; background: transparent;
+  color: var(--muted); fill: currentColor; display: grid; place-items: center; cursor: pointer;
+}
+.more:hover, .more[aria-expanded="true"] { background: var(--card); color: var(--text); }
+.more.on { color: var(--accent); }
+.backdrop { position: fixed; inset: 0; z-index: 20; background: rgb(0 0 0 / .35); }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 21; width: min(280px, 80vw);
+  background: var(--bg); border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgb(0 0 0 / .18);
+  padding: max(12px, env(safe-area-inset-top)) 12px 24px;
+  transform: translateX(100%); visibility: hidden; transition: transform .22s ease, visibility 0s .22s;
+}
+.drawer:focus { outline: none; }
+.drawer.open { transform: none; visibility: visible; transition: transform .22s ease; }
+.drawer-h { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 12px; font-size: 18px; }
+.drawer .close { width: 36px; height: 36px; border: 0; border-radius: 10px; background: var(--card); color: var(--text); font-size: 22px; cursor: pointer; }
+.drawer nav { display: flex; flex-direction: column; gap: 4px; }
+.drawer nav a { padding: 12px 12px; border-radius: 10px; text-decoration: none; color: var(--text); font-weight: 600; font-size: 16px; }
+.drawer nav a:hover { background: var(--card); }
+.drawer nav a.on { background: var(--card); color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+body.no-scroll { overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .drawer, .drawer.open { transition: none; } }
+
+/* розклад на тиждень */
+.week-t { text-align: center; }
+.cal-nav .week-t h1 { text-transform: none; }
+.week-t span { color: var(--muted); font-size: 13px; }
+.week { display: grid; gap: 18px; margin-top: 8px; }
+.week .day-h { margin: 0 0 8px; }
+.week-day.is-today .lessons { border-color: var(--accent); }
 
 main { max-width: 760px; margin: 0 auto; padding: 16px 16px 48px; }
 h1 { font-size: 24px; line-height: 1.25; margin: 8px 0 2px; }

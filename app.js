@@ -205,7 +205,7 @@ function home() {
   return html;
 }
 
-function dayTable(s) {
+function dayTable(s, legend = true) {
   const ls = plan(s);
   const d = parse(s);
   if (!ls.length) {
@@ -217,8 +217,29 @@ function dayTable(s) {
     return `<li style="--c:${subj(tag).color};--g:${groupColor(tag)}"><span class="ln">${n}</span>
       <a href="#/s/${encodeURIComponent(tag)}">${esc(subj(tag).name)}<i class="gdot"></i></a>
       <span class="lr">${b ? `${b[0]}–${b[1]} · ` : ""}${room(r, tag)}</span></li>`;
-  }).join("")}</ol>
-    <p class="legend groups">${GROUPS.map(([name, c]) => `<span><i class="dot" style="--c:${c}"></i>${esc(name)}</span>`).join("")}</p>`;
+  }).join("")}</ol>${legend ? groupLegend() : ""}`;
+}
+
+const groupLegend = () =>
+  `<p class="legend groups">${GROUPS.map(([name, c]) => `<span><i class="dot" style="--c:${c}"></i>${esc(name)}</span>`).join("")}</p>`;
+
+// ---------- Розклад на тиждень ----------
+let weekOff = null;
+function weekPage() {
+  const t = parse(today());
+  if (weekOff === null) weekOff = t.getDay() === 0 || t.getDay() === 6 ? 1 : 0;
+  const mon = addDays(t, -((t.getDay() + 6) % 7) + 7 * weekOff);
+  const fri = addDays(mon, 4);
+  const type = (SCHOOL.weeks || {})[iso(mon)];
+  const title = weekOff === 0 ? "Цей тиждень" : weekOff === 1 ? "Наступний тиждень" : weekOff === -1 ? "Минулий тиждень" : "Тиждень";
+  const days = [0, 1, 2, 3, 4].map((i) => {
+    const s = iso(addDays(mon, i));
+    return `<div class="week-day${s === today() ? " is-today" : ""}"><div class="day-h"><b>${cap(WD[parse(s).getDay()])}</b><span>${short(s)}${s === today() ? " · сьогодні" : ""}</span></div>${dayTable(s, false)}</div>`;
+  }).join("");
+  return `<div class="cal-nav"><button data-week="-1" aria-label="Попередній тиждень">‹</button>
+      <div class="week-t"><h1>${title}</h1><span>${short(iso(mon))} – ${short(iso(fri))}${type ? ` · тиждень ${type === "A" ? "А" : "Б"}` : ""}</span></div>
+      <button data-week="1" aria-label="Наступний тиждень">›</button></div>
+    ${groupLegend()}<div class="week">${days}</div>`;
 }
 
 let calMonth = null, calSel = null;
@@ -340,15 +361,14 @@ function render() {
   if (h === "/cal") { tab = "cal"; html = cal(); }
   else if (h === "/s") { tab = "subj"; html = subjects(); }
   else if (h.startsWith("/s/")) { tab = "subj"; html = subject(h.slice(3)); }
+  else if (h === "/week") { tab = "week"; html = weekPage(); }
   else if (h === "/files") { tab = "files"; html = filesPage(); }
   else if (h === "/secret") { tab = "secret"; html = secretPage(); }
   else html = home();
   app.innerHTML = html;
-  document.querySelectorAll(".tabs a").forEach((a) => {
-    const on = a.dataset.tab === tab;
-    a.classList.toggle("on", on);
-    if (on) a.scrollIntoView({ block: "nearest", inline: "nearest" });
-  });
+  document.querySelectorAll(".tabs a, .drawer a").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
+  document.getElementById("more").classList.toggle("on", ["subj", "files", "secret"].includes(tab));
+  setDrawer(false);
   clearInterval(timer);
   if (tab === "home" && SCHOOL.bells.length) {
     timer = setInterval(() => {
@@ -362,6 +382,8 @@ window.addEventListener("hashchange", () => { render(); scrollTo(0, 0); });
 app.addEventListener("click", (ev) => {
   const day = ev.target.closest("[data-day]");
   if (day) { calSel = day.dataset.day; render(); return; }
+  const wk = ev.target.closest("[data-week]");
+  if (wk) { weekOff += Number(wk.dataset.week); render(); return; }
   const mon = ev.target.closest("[data-mon]");
   if (mon) { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + Number(mon.dataset.mon), 1); render(); return; }
   const img = ev.target.closest("[data-img]");
@@ -384,10 +406,28 @@ app.addEventListener("submit", async (ev) => {
   }
 });
 
+// ---------- бокове меню ----------
+const drawer = document.getElementById("drawer");
+const backdrop = document.getElementById("backdrop");
+const moreBtn = document.getElementById("more");
+function setDrawer(open) {
+  drawer.classList.toggle("open", open);
+  if (!open && drawer.contains(document.activeElement)) moreBtn.focus({ preventScroll: true });
+  drawer.inert = !open;
+  moreBtn.setAttribute("aria-expanded", String(open));
+  backdrop.hidden = !open;
+  document.body.classList.toggle("no-scroll", open);
+  if (open) drawer.focus({ preventScroll: true });
+}
+moreBtn.addEventListener("click", () => setDrawer(!drawer.classList.contains("open")));
+backdrop.addEventListener("click", () => setDrawer(false));
+document.getElementById("drawer-close").addEventListener("click", () => setDrawer(false));
+drawer.addEventListener("click", (e) => { if (e.target.closest("a")) setDrawer(false); });
+
 const viewer = document.getElementById("viewer");
 function openViewer(src) { viewer.querySelector("img").src = src; viewer.hidden = false; }
 viewer.addEventListener("click", () => { viewer.hidden = true; });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") viewer.hidden = true; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { viewer.hidden = true; setDrawer(false); } });
 
 const get = (u, fallback) => fetch(`${u}?t=${Date.now()}`, { cache: "no-store" })
   .then((r) => (r.ok ? r.json() : fallback)).catch(() => fallback);

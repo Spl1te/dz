@@ -15,11 +15,21 @@
   <nav class="tabs" aria-label="Розділи">
     <a href="#/" data-tab="home">Головна</a>
     <a href="#/cal" data-tab="cal">Календар</a>
+    <a href="#/week" data-tab="week">Розклад</a>
+  </nav>
+  <button class="more" id="more" aria-label="Інші розділи" aria-expanded="false" aria-controls="drawer">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+  </button>
+</header>
+<div class="backdrop" id="backdrop" hidden></div>
+<aside class="drawer" id="drawer" aria-label="Інші розділи" inert tabindex="-1">
+  <div class="drawer-h"><b>Ще</b><button class="close" id="drawer-close" aria-label="Закрити">×</button></div>
+  <nav>
     <a href="#/s" data-tab="subj">Предмети</a>
     <a href="#/files" data-tab="files">Файли</a>
     <a href="#/secret" data-tab="secret">Секрет</a>
   </nav>
-</header>
+</aside>
 <main id="app" aria-live="polite"><p class="muted pad">Завантаження…</p></main>
 <div id="viewer" class="viewer" hidden><img alt=""><button class="close" aria-label="Закрити">×</button></div>
 <script src="app.js"></script>
