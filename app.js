@@ -183,12 +183,17 @@ function card(e, { showSubj = true } = {}) {
     taskHtml = `<details class="tasks"><summary>Завдання <span>${tasks.length}</span></summary>${body}</details>`;
   }
   const done = isDone(e), g = grpLabel(e);
-  const del = ADMIN_TOKEN ? `<button type="button" class="del" data-del="${esc(e.id)}" aria-label="Видалити ДЗ">🗑</button>` : "";
+  const del = ADMIN_TOKEN ? `<span class="adm-btns"><button type="button" class="del" data-edit="${esc(e.id)}" aria-label="Редагувати ДЗ">✏️</button><button type="button" class="del" data-del="${esc(e.id)}" aria-label="Видалити ДЗ">🗑</button></span>` : "";
   const check = `<button type="button" class="check" data-done="${esc(e.id)}" role="checkbox" aria-checked="${done}" aria-label="${done ? "Повернути в невиконане" : "Позначити виконаним"}"></button>`;
   return `<article class="card${done ? " is-done" : ""}${isMine(e) ? "" : " not-mine"}" style="--c:${s.color}">
     <div class="head">${check}${showSubj ? `<a class="subj" href="#/s/${encodeURIComponent(e.tag)}">${esc(s.name)}</a>` : "<span></span>"}
       ${g ? `<span class="grp">${esc(g)}</span>` : ""}<span class="dates">${dates}</span>${del}</div>
-    <p class="hw">${linkify(e.homework)}</p>
+    ${ADMIN_TOKEN && EDIT_ID === String(e.id) ? `<form id="edit-form" class="edit-form" data-id="${esc(e.id)}">
+      <label>Текст ДЗ<textarea name="hw" rows="4" required>${esc(e.homework)}</textarea></label>
+      <label>Здати<input type="date" name="due" value="${esc(e.due || "")}"></label>
+      <div class="edit-btns"><button type="submit">Зберегти</button><button type="button" data-edit-cancel>Скасувати</button></div>
+      <p class="muted small-note">Зміниться на сайті${e.post ? " і в пості в каналі" : " (пост у каналі старий — його не змінимо)"}.</p></form>`
+    : `<p class="hw">${linkify(e.homework)}</p>`}
     ${photos ? `<div class="thumbs">${photos}</div>` : ""}
     ${taskHtml}
   </article>`;
@@ -602,24 +607,165 @@ function filesPage() {
     <h2>Підручники</h2><ul class="files books">${books || ""}</ul>`;
 }
 
-let secretHtml = null;
-// Ключ видалення ДЗ: сервер видає його після правильного пароля «Секрету», живе до закриття вкладки
+// ---------- адмінпанель ----------
+// Ключ видає сервер після пароля адмінпанелі; живе до закриття вкладки (на сервері — 12 год)
 let ADMIN_TOKEN = (() => { try { return sessionStorage.getItem("dz-admin"); } catch { return null; } })();
 function setToken(t) {
   ADMIN_TOKEN = t;
   try { t ? sessionStorage.setItem("dz-admin", t) : sessionStorage.removeItem("dz-admin"); } catch { /* приватний режим */ }
+  ADM = { tab: ADM.tab, data: null };
 }
-function secretPage() {
-  const mode = ADMIN_TOKEN ? `<div class="unlock">🔓 Видалення ДЗ увімкнено: на картках зʼявилась кнопка 🗑.
-      <button type="button" data-lockout>Вимкнути</button></div>` : "";
-  if (secretHtml !== null) {
-    return `<h1>Секрет</h1>${mode}${secretHtml || `<div class="empty">Тут поки порожньо.</div>`}`;
+let ADM = { tab: "visitors", data: null };
+let EDIT_ID = null;
+async function adminApi(action, body = {}) {
+  const r = await fetch(`api/admin/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, token: ADMIN_TOKEN }) });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) { setToken(null); render(); throw new Error("Сесія адміна закінчилась — увійди ще раз."); }
+  if (!j.ok) throw new Error(j.error || "Помилка");
+  return j;
+}
+async function loadAdmin() {
+  try {
+    const [v, d] = await Promise.all([adminApi("visitors"), adminApi("deleted")]);
+    ADM.data = { visitors: v.visitors, blocked: v.blocked, you: v.you, deleted: d.list };
+  } catch (e) { ADM.data = { error: e.message }; }
+  if ((location.hash.slice(1) || "/") === "/admin") render();
+}
+const fmtTime = (s) => (s ? `${short(s.slice(0, 10))} ${s.slice(11, 16)}` : "—");
+const shortUa = (ua) => (/iPhone|iPad/.test(ua) ? "iPhone/iPad" : /Android/.test(ua) ? "Android" : /Windows/.test(ua) ? "Windows" : /Mac OS/.test(ua) ? "Mac" : /curl|bot|python/i.test(ua) ? "бот/скрипт" : "інше");
+function lockForm(id, title, hint) {
+  return `<h1>${title}</h1><form class="lock" id="${id}" autocomplete="off">
+      <p class="sub">${hint}</p>
+      <input id="${id}-pw" type="password" inputmode="numeric" placeholder="Пароль" aria-label="Пароль" required>
+      <button type="submit">Увійти</button>
+      <p class="err" id="${id}-err" role="alert"></p></form>`;
+}
+function adminPage() {
+  if (!ADMIN_TOKEN) return lockForm("lock", "Адмінпанель", "Тільки для адмінів. Введи пароль.");
+  if (!ADM.data) { loadAdmin(); return `<h1>Адмінпанель</h1><p class="muted pad">Завантаження…</p>`; }
+  if (ADM.data.error) return `<h1>Адмінпанель</h1><div class="empty">${esc(ADM.data.error)}</div>`;
+  const tabs = [["visitors", "Відвідувачі й блок"], ["deleted", `Видалені ДЗ${ADM.data.deleted.length ? ` · ${ADM.data.deleted.length}` : ""}`], ["site", "Сайт"]];
+  const sub = `<div class="subtabs" role="tablist">${tabs.map(([k, t]) => `<button type="button" role="tab" data-atab="${k}" aria-selected="${ADM.tab === k}">${t}</button>`).join("")}</div>`;
+  let body = "";
+  const D = ADM.data;
+  if (ADM.tab === "visitors") {
+    const bl = new Set(D.blocked.map((b) => b.ip));
+    body = `<h2>Заблоковані</h2>${D.blocked.length ? `<ul class="iplist">${D.blocked.map((b) => `<li><div><b>${esc(b.ip)}</b><span>${esc(b.note || "")} · з ${fmtTime(b.when)}</span></div>
+        <button type="button" data-unblock="${esc(b.ip)}">Розблокувати</button></li>`).join("")}</ul>` : `<p class="muted">Нікого не заблоковано.</p>`}
+      <form id="blockform" class="blockform"><input id="bf-ip" placeholder="IP-адреса" aria-label="IP-адреса" required><input id="bf-note" placeholder="Примітка (необовʼязково)" aria-label="Примітка"><button type="submit">Заблокувати</button></form>
+      <h2>Останні відвідувачі</h2><p class="muted small-note">Твоя IP: <b>${esc(D.you)}</b> — її заблокувати не можна.</p>
+      <ul class="iplist">${D.visitors.map((v) => `<li class="${bl.has(v.ip) ? "is-blocked" : ""}"><div><b>${esc(v.ip)}${v.ip === D.you ? " (ти)" : ""}</b>
+        <span>${fmtTime(v.last)} · ${v.hits} запит. · ${esc(shortUa(v.ua || ""))}</span></div>
+        ${bl.has(v.ip) ? `<em>заблоковано</em>` : v.ip === D.you ? "" : `<button type="button" data-block="${esc(v.ip)}">Заблокувати</button>`}</li>`).join("") || `<li class="muted">Поки нікого.</li>`}</ul>`;
+  } else if (ADM.tab === "deleted") {
+    const list = [...D.deleted].reverse();
+    body = list.length ? list.map((e) => `<article class="card trash" style="--c:${subj(e.tag).color}">
+        <div class="head"><b class="subj">${esc(subj(e.tag).name)}</b><span class="dates">видалено ${fmtTime(e.deleted_at)}</span></div>
+        <p class="hw">${linkify(e.homework)}</p><p class="muted small-note">задано ${short(e.given)}${e.due ? ` → здати ${short(e.due)}` : ""}</p>
+        <button type="button" class="restore" data-restore="${esc(e.id)}">↩ Повернути на сайт</button></article>`).join("")
+      : `<div class="empty">Кошик порожній.</div>`;
+  } else {
+    body = `<p>Перезапуск займає ~5–10 секунд: сайт сам перезавантажить сторінку, коли знову запрацює.</p>
+      <button type="button" class="btn-danger" data-restart>🔄 Перезапустити сайт</button>
+      <p class="muted small-note">Те саме з Telegram: /restartsite. Ще є /stopsite, /startsite, /restartbot, /fullrestart.</p>`;
   }
-  return `<h1>Секрет</h1><form class="lock" id="lock" autocomplete="off">
-      <p class="sub">Введи пароль, щоб побачити вміст.</p>
-      <input id="pw" type="password" inputmode="numeric" placeholder="Пароль" aria-label="Пароль" required>
-      <button type="submit">Відкрити</button>
-      <p class="err" id="pwerr" role="alert"></p></form>`;
+  return `<h1>Адмінпанель</h1><div class="unlock">🔓 Адмін-режим увімкнено: на картках ДЗ є ✏️ і 🗑. Інструкції — у вкладці «Інфо».
+      <button type="button" data-lockout>Вийти</button></div>${sub}<div class="admin-body">${body}</div>`;
+}
+
+// ---------- «Секрет» (окремий пароль) ----------
+let secretHtml = null;
+function secretPage() {
+  if (secretHtml !== null) return `<h1>Секрет</h1>${secretHtml || `<div class="empty">Тут поки порожньо.</div>`}`;
+  return lockForm("lock2", "Секрет", "Введи пароль, щоб побачити вміст.");
+}
+
+// ---------- «Інфо» ----------
+function infoPage() {
+  const user = `
+  <section class="doc">
+    <h2>Що це</h2>
+    <p>Сайт 8-Д з усім для навчання: домашні завдання, розклад, підручники, файли від учителів і повітряні тривоги в Києві.
+      Працює з телефона й комп'ютера, нічого встановлювати не треба.</p>
+
+    <h2>Звідки береться ДЗ</h2>
+    <p>ДЗ надсилають у Telegram-бота (власник і адміни). Бот сам визначає предмет і дату здачі за розкладом,
+      а після підтвердження публікує ДЗ у канал і на сайт. Якщо в завданні є номер вправи, під ДЗ з'являється вкладка
+      <b>«Завдання»</b> з вирізкою з підручника.</p>
+
+    <h2>Перше відкриття</h2>
+    <p>Сайт питає <b>групу</b> (1 або 2), <b>другу іноземну</b> (німецька чи іспанська) і <b>з ким українська</b>.
+      Після цього весь сайт показує саме твій розклад і твоє ДЗ. Змінити вибір — перемикачами вгорі вкладки «Розклад».</p>
+
+    <h2>Вкладки</h2>
+    <ul>
+      <li><b>Головна</b> — що здавати найближчим часом. Згори — картка «Зараз»: який урок іде і скільки до кінця, або перерва і що далі.</li>
+      <li><b>Календар</b> — натисни на будь-який день: розклад цього дня й усе ДЗ, яке треба здати. Крапки на днях — є ДЗ.</li>
+      <li><b>Розклад</b> — тиждень з кабінетами, А/Б тижні, перемикачі групи й мови. Зверху — сьогоднішній день із живою підсвіткою уроку й перерви
+        (після уроків — завтрашній).</li>
+      <li><b>⋯ → Предмети</b> — кожен предмет окремо: найближчі уроки, підручник, файли, усе ДЗ.</li>
+      <li><b>⋯ → Файли</b> — підручники (PDF) і файли від учителів.</li>
+      <li><b>⋯ → Виконане</b> — ДЗ, які ти позначив галочкою.</li>
+      <li><b>⋯ → Тривоги</b> — тривоги в м. Київ: коли були, скільки тривали, які уроки зачепили.</li>
+    </ul>
+
+    <h2>Галочки</h2>
+    <p>Зробив ДЗ — натисни квадратик біля нього. На головній воно викреслиться й зникне, в інших місцях лишиться викресленим.
+      Усе виконане — у «⋯ → Виконане», там галочку можна зняти. Галочки зберігаються лише у твоєму браузері.</p>
+
+    <h2>Групи й чуже ДЗ</h2>
+    <p>Для англійської, інформатики й технологій ДЗ може бути окремо для 1 і 2 групи, для української — окремо для різних учительок,
+      а німецька й іспанська — різні предмети. На головній видно тільки твоє. Чуже — лише в календарі й «Предметах», притінене, з міткою групи.</p>
+
+    <h2>Тривоги</h2>
+    <p>Сайт сам стежить за тривогою в Києві. Під час тривоги на головній — червоний рядок. Якщо урок закінчився під тривогу
+      (тривога йшла хоча б останні 10 хв) і ДЗ з нього не задали — замість ДЗ з'явиться червона плашка <b>«Була тривога!»</b>.
+      У календарі за уроком — червона смуга: скільки відсотків уроку пройшло під тривогою.</p>
+
+    <h2>Корисно знати</h2>
+    <ul>
+      <li>Сайт оновлює дані сам; якщо щось не з'явилось — просто онови сторінку.</li>
+      <li>Щоб сайт був як застосунок: у браузері телефона «Поділитися» → «На екран „Додому“» (iPhone) або ⋮ → «Додати на головний екран» (Android).</li>
+      <li>Вибір групи, галочки — тільки у твоєму браузері, нікуди не відправляються.</li>
+      <li>Пости з ДЗ також є в Telegram-каналі класу.</li>
+    </ul>
+
+    <div class="bug">🐞 <b>Знайшов баг або є ідея?</b> Пиши мені в Telegram: <a href="https://t.me/Spl1ted" target="_blank" rel="noopener">@Spl1ted</a></div>
+  </section>`;
+  const adm = !ADMIN_TOKEN ? "" : `
+  <section class="doc admin-doc">
+    <h2><span class="adm-dot" aria-hidden="true"></span> Для адмінів</h2>
+    <h3>Адмінпанель</h3>
+    <ul>
+      <li>Вхід: «⋯ → Адмінпанель» → пароль. Поки режим увімкнено, біля назви сайту червоним «Адмін-доступ!».
+        Діє до закриття вкладки (максимум 12 год). Вийти — кнопка «Вийти» в адмінпанелі.</li>
+      <li><b>✏️ на картці ДЗ</b> — змінити текст і дату здачі. Зміна йде на сайт і в пост у каналі
+        (для ДЗ, опублікованих після цього оновлення; для старших — лише сайт).</li>
+      <li><b>🗑</b> — прибрати ДЗ із сайту (у каналі пост лишається). Усе видалене — в адмінпанелі, «Видалені ДЗ», звідки його можна повернути.</li>
+      <li><b>Відвідувачі й блок</b> — останні IP, хто й коли заходив. «Заблокувати» — ця IP бачить тільки «Доступ заблоковано».
+        Свою IP заблокувати не можна. Увага: у мобільного інтернету IP часто спільна на багатьох людей і змінюється — блокуй обережно.</li>
+      <li><b>Сайт → Перезапустити</b> — якщо сайт поводиться дивно. Займає ~10 с.</li>
+    </ul>
+    <h3>Бот (Telegram)</h3>
+    <ul>
+      <li>Бот відповідає тільки власнику й адмінам. Надіслати ДЗ: текст, фото дошки, альбом, голосове з уроку, посилання чи файл + назва уроку.
+        Бот покаже чернетку → «✅ Опублікувати». Виправити — відповісти (reply) на чернетку текстом.</li>
+      <li>Для предметів із групами бот спитає «1 група / 2 група» (для української — «Ганна / —»).</li>
+      <li>Якщо з предмета за цей день ДЗ вже є, бот попередить. Адміну повтор опублікувати не можна (власнику — можна).
+        Якщо бот переплутав предмет — відповідай на чернетку, який це урок.</li>
+      <li>Команди власника: <code>/adminadd username</code>, <code>/adminremove username</code>, <code>/admins</code>,
+        <code>/restartsite</code>, <code>/stopsite</code>, <code>/startsite</code>, <code>/restartbot</code>, <code>/fullrestart</code>, <code>/digest</code>.</li>
+      <li><b>Зведення</b>: о 17:00 бот надсилає власнику чернетку «ДЗ на завтра». Після «✅» вона йде в канал о 18:00
+        (або одразу, якщо вже пізніше). Без підтвердження — не йде.</li>
+    </ul>
+    <h3>Ноутбук-сервер</h3>
+    <ul>
+      <li>Папка: <code>Робочий стіл\\homework-bot</code>. Логи: <code>data\\bot.log</code>, <code>data\\site.log</code>.</li>
+      <li>Дзвінки й учителі — <code>data\\school.json</code>, розклад — <code>schedule.py</code>.</li>
+      <li>Сайт назовні — через Tailscale Funnel; якщо адреса не відкривається, на ноутбуці: <code>tailscale funnel status</code>.</li>
+    </ul>
+  </section>`;
+  return `<h1>Інфо</h1><p class="sub">Як усе влаштовано.</p>${user}${adm}`;
 }
 
 // ---------- роутинг ----------
@@ -634,13 +780,16 @@ function render() {
   else if (h === "/week") { tab = "week"; html = weekPage(); }
   else if (h === "/files") { tab = "files"; html = filesPage(); }
   else if (h === "/secret") { tab = "secret"; html = secretPage(); }
+  else if (h === "/admin") { tab = "admin"; html = adminPage(); }
+  else if (h === "/info") { tab = "info"; html = infoPage(); }
   else if (h === "/alerts") { tab = "alerts"; html = alertsPage(); }
   else if (h === "/done") { tab = "done"; html = donePage(); }
   else html = home();
   app.innerHTML = html;
   document.querySelectorAll(".tabs a, .drawer a").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
-  document.getElementById("more").classList.toggle("on", ["subj", "files", "secret", "alerts", "done"].includes(tab));
+  document.getElementById("more").classList.toggle("on", ["subj", "files", "secret", "alerts", "done", "admin", "info"].includes(tab));
   setDrawer(false);
+  document.getElementById("admin-badge").hidden = !ADMIN_TOKEN;
   clearInterval(timer);
   if (tab === "week" && SCHOOL.bells.length) {
     const shown = focusDay();
@@ -663,7 +812,35 @@ window.addEventListener("hashchange", () => { render(); scrollTo(0, 0); });
 app.addEventListener("click", (ev) => {
   const day = ev.target.closest("[data-day]");
   if (day) { calSel = day.dataset.day; render(); return; }
-  if (ev.target.closest("[data-lockout]")) { setToken(null); render(); return; }
+  if (ev.target.closest("[data-lockout]")) { adminApi("logout").catch(() => {}); setToken(null); render(); return; }
+  const at = ev.target.closest("[data-atab]");
+  if (at) { ADM.tab = at.dataset.atab; render(); return; }
+  const bl = ev.target.closest("[data-block]"), ub = ev.target.closest("[data-unblock]"), rs = ev.target.closest("[data-restore]");
+  if (bl || ub || rs) {
+    const msg = bl ? `Заблокувати ${bl.dataset.block}? Ця IP більше не відкриє сайт.` : ub ? `Розблокувати ${ub.dataset.unblock}?` : "Повернути це ДЗ на сайт?";
+    if (!confirm(msg)) return;
+    (bl ? adminApi("block", { ip: bl.dataset.block }) : ub ? adminApi("unblock", { ip: ub.dataset.unblock }) : adminApi("restore", { id: rs.dataset.restore }))
+      .then(async () => {
+        if (rs) RAW = await get("data/homework.json", RAW);
+        applyPref(); ADM.data = null; render();
+      }).catch((e) => alert(e.message));
+    return;
+  }
+  if (ev.target.closest("[data-restart]")) {
+    if (!confirm("Перезапустити сайт? Це займе ~10 секунд.")) return;
+    adminApi("restart").then(() => {
+      app.innerHTML = `<h1>Перезапуск…</h1><p class="muted">Сайт перезапускається, сторінка оновиться сама.</p>`;
+      const t0 = Date.now();
+      const poll = setInterval(async () => {
+        const ok = await fetch(`data/files.json?t=${Date.now()}`, { cache: "no-store" }).then((r) => r.ok).catch(() => false);
+        if ((ok && Date.now() - t0 > 2500) || Date.now() - t0 > 60000) { clearInterval(poll); location.reload(); }
+      }, 1500);
+    }).catch((e) => alert(e.message));
+    return;
+  }
+  const ed = ev.target.closest("[data-edit]");
+  if (ed) { EDIT_ID = ed.dataset.edit; render(); return; }
+  if (ev.target.closest("[data-edit-cancel]")) { EDIT_ID = null; render(); return; }
   const delBtn = ev.target.closest("[data-del]");
   if (delBtn) { deleteHw(delBtn.dataset.del); return; }
   const chk = ev.target.closest("[data-done]");
@@ -694,18 +871,40 @@ app.addEventListener("click", (ev) => {
 });
 
 app.addEventListener("submit", async (ev) => {
-  if (ev.target.id !== "lock") return;
-  ev.preventDefault();
-  const err = document.getElementById("pwerr");
-  const pw = document.getElementById("pw").value;
-  err.textContent = "";
-  try {
-    const r = await fetch("api/secret", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw }) });
-    const j = await r.json();
-    if (j.ok) { secretHtml = j.html || ""; if (j.token) setToken(j.token); render(); }
-    else err.textContent = j.error || "Неправильний пароль";
-  } catch {
-    err.textContent = "Немає звʼязку із сервером";
+  const id = ev.target.id;
+  if (id === "lock" || id === "lock2") {
+    ev.preventDefault();
+    const err = document.getElementById(`${id}-err`);
+    err.textContent = "";
+    try {
+      const r = await fetch(id === "lock" ? "api/admin/login" : "api/secret2", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: document.getElementById(`${id}-pw`).value }) });
+      const j = await r.json();
+      if (!j.ok) { err.textContent = j.error || "Неправильний пароль"; return; }
+      if (id === "lock") setToken(j.token); else secretHtml = j.html || "";
+      render();
+    } catch { err.textContent = "Немає звʼязку із сервером"; }
+    return;
+  }
+  if (id === "blockform") {
+    ev.preventDefault();
+    try {
+      await adminApi("block", { ip: document.getElementById("bf-ip").value.trim(), note: document.getElementById("bf-note").value });
+      ADM.data = null; render();
+    } catch (e) { alert(e.message); }
+    return;
+  }
+  if (id === "edit-form") {
+    ev.preventDefault();
+    const f = ev.target, btn = f.querySelector("[type=submit]");
+    btn.disabled = true;
+    try {
+      const j = await adminApi("edit", { id: f.dataset.id, homework: f.elements.hw.value, due: f.elements.due.value });
+      const i = RAW.findIndex((x) => String(x.id) === f.dataset.id);
+      if (i >= 0) RAW[i] = j.entry;
+      EDIT_ID = null; applyPref(); render();
+      alert(j.channel ? "Збережено на сайті й у каналі ✅" : `Збережено на сайті ✅\nКанал не змінено: ${j.channel_error}`);
+    } catch (e) { btn.disabled = false; alert(e.message); }
   }
 });
 
@@ -756,6 +955,7 @@ Promise.all([get("data/homework.json", []), get("data/school.json", null), get("
     applyPref();
     render();
     if (!PREF) showSetup();
+    if (ADMIN_TOKEN) adminApi("check").catch(() => {}); // прострочений ключ — тихо вийти з адмін-режиму
   });
 // Тривоги оновлюються кожні 30 с; сторінку перемальовуємо, лише коли щось змінилось
 setInterval(async () => {
