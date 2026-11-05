@@ -7,6 +7,9 @@
   --accent: #3b5bdb;
   --accent-soft: #e7ecfd;
   --on-accent: #ffffff;
+  --danger: #e03131;
+  --danger-soft: #ffe3e3;
+  --danger-bar: rgb(224 49 49 / .16);
   --shadow: 0 1px 2px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.04);
   --r: 14px;
   color-scheme: light;
@@ -21,6 +24,9 @@
     --accent: #8ea6ff;
     --accent-soft: #262d48;
     --on-accent: #10142a;
+    --danger: #ff6b6b;
+    --danger-soft: #3a1d20;
+    --danger-bar: rgb(255 107 107 / .2);
     --shadow: none;
     color-scheme: dark;
   }
@@ -288,3 +294,31 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: v
   background: var(--accent); color: var(--on-accent); cursor: pointer;
 }
 .setup-box .go:disabled { opacity: .4; cursor: default; }
+
+/* тривоги */
+.alert-now {
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--card); padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px;
+}
+.alert-now span { color: var(--muted); font-size: 13px; }
+.alert-now.on { border: 2px solid var(--danger); background: var(--danger-soft); }
+.alert-now.on b { color: var(--danger); font-size: 17px; }
+.small-note { font-size: 13px; margin: 6px 0 0; }
+.alerts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.alert-item { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--danger); border-radius: var(--r); padding: 10px 14px; }
+.alert-item.live { background: var(--danger-soft); }
+.ai-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.ai-h span { color: var(--muted); font-size: 13px; }
+.hit { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.hit li { display: flex; justify-content: space-between; gap: 10px; padding-left: 8px; border-left: 3px solid var(--c, var(--line)); }
+.hit li b { font-weight: 600; }
+.hit li span { color: var(--danger); font-weight: 700; font-variant-numeric: tabular-nums; }
+.hit .brk-hit b { color: var(--muted); font-weight: 500; }
+.alert-card { border-color: var(--danger); border-left-color: var(--c); background: var(--danger-soft); }
+.alert-card .hw b { color: var(--danger); }
+.lessons li.al { background-image: linear-gradient(90deg, var(--danger-bar) var(--ap), transparent var(--ap)); }
+.apct { color: var(--danger); font-weight: 700; }
+.alert-line {
+  display: block; margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r);
+  background: var(--danger); color: #fff; font-weight: 700; text-decoration: none;
+}

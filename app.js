@@ -98,7 +98,7 @@ let PREF = (() => {
 })();
 const pref = () => PREF || { group: 1, lang: "de" };
 const otherLang = () => (pref().lang === "de" ? "Ісп" : "Нім");
-const applyPref = () => { ALL = RAW.filter((e) => e.tag !== otherLang()); };
+const applyPref = () => { ALL = RAW.filter((e) => e.tag !== otherLang()).concat(alertEntries()); };
 function savePref(p) {
   PREF = p;
   try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch { /* приватний режим — тільки до перезавантаження */ }
@@ -139,6 +139,13 @@ const sortSubj = (list) => [...list].sort((a, b) => rank(a.tag) - rank(b.tag));
 // ---------- картка ДЗ ----------
 function card(e, { showSubj = true } = {}) {
   const s = subj(e.tag);
+  if (e.alert) {
+    return `<article class="card alert-card" style="--c:${s.color}">
+    <div class="head">${showSubj ? `<a class="subj" href="#/s/${encodeURIComponent(e.tag)}">${esc(s.name)}</a>` : "<span></span>"}
+      <span class="dates">${e.n} урок ${short(e.given)}${e.due ? ` → здати ${short(e.due)}` : ""}</span></div>
+    <p class="hw"><b>🚨 Була тривога!</b> ДЗ не задавали · ${e.pct}% уроку під тривогою</p>
+  </article>`;
+  }
   const dates = `задано ${short(e.given)}` + (e.due ? ` → здати ${short(e.due)}` : "");
   const photos = (e.photos || []).map((p) =>
     `<button data-img="${esc(p)}" aria-label="Відкрити фото"><img src="${esc(p)}" loading="lazy" alt="Фото дошки"></button>`).join("");
@@ -160,6 +167,102 @@ function card(e, { showSubj = true } = {}) {
     ${photos ? `<div class="thumbs">${photos}</div>` : ""}
     ${taskHtml}
   </article>`;
+}
+
+// ---------- тривоги в Києві ----------
+let ALERTS = { now: null, checked: null, list: [] };
+const ts = (s) => new Date(s).getTime(); // "YYYY-MM-DDTHH:MM:SS" — місцевий час
+const hhmm = (s) => s.slice(11, 16);
+const MIN = 60000;
+const alertSpans = () => ALERTS.list.map((a) => [ts(a.start), a.end ? ts(a.end) : Date.now()]);
+function overlapMs(a, b) {
+  let t = 0;
+  for (const [s0, e0] of alertSpans()) t += Math.max(0, Math.min(e0, b) - Math.max(s0, a));
+  return t;
+}
+function lessonSpan(day, n) {
+  const b = bell(n);
+  if (!b) return null;
+  const d0 = parse(day).getTime();
+  return [d0 + toMin(b[0]) * MIN, d0 + toMin(b[1]) * MIN];
+}
+// Скільки % уроку пройшло під тривогою
+function alertPct(day, n) {
+  const sp = lessonSpan(day, n);
+  return sp ? Math.round((overlapMs(sp[0], sp[1]) / (sp[1] - sp[0])) * 100) : 0;
+}
+// Тривога йшла щонайменше останні 10 хв до дзвінка
+function endCovered(day, n) {
+  const sp = lessonSpan(day, n);
+  return !!sp && overlapMs(sp[1] - 10 * MIN, sp[1]) >= 10 * MIN - 1000;
+}
+const durStr = (ms) => {
+  const m = Math.max(1, Math.round(ms / MIN));
+  return m >= 60 ? `${Math.floor(m / 60)} год${m % 60 ? ` ${m % 60} хв` : ""}` : `${m} хв`;
+};
+function nextLessonOf(tag, from) {
+  for (let i = 1; i < 60; i++) {
+    const s = iso(addDays(parse(from), i));
+    if (plan(s).some((l) => l[1] === tag)) return s;
+  }
+  return null;
+}
+// Дні, яких торкалась хоч одна тривога
+function alertDays() {
+  const out = new Set();
+  for (const [a, b] of alertSpans()) {
+    for (let d = parse(iso(new Date(a))); d.getTime() <= b; d = addDays(d, 1)) out.add(iso(d));
+  }
+  return [...out].sort();
+}
+// Плашки «Була тривога!» для уроків без ДЗ, що закінчились під тривогу
+function alertEntries() {
+  if (!SCHOOL.bells.length || !ALERTS.list.length) return [];
+  const t = today(), out = [];
+  for (const d of alertDays()) {
+    if (d > t || (d === t && !dayOver(d))) continue;
+    const seen = new Set();
+    for (const [n, tag] of plan(d)) {
+      if (seen.has(tag) || !endCovered(d, n)) continue;
+      if (RAW.some((e) => e.tag === tag && e.given === d)) continue;
+      seen.add(tag);
+      out.push({ id: `alert-${d}-${n}`, alert: true, tag, n, given: d, due: nextLessonOf(tag, d), pct: alertPct(d, n), homework: "" });
+    }
+  }
+  return out;
+}
+function alertsPage() {
+  const open = ALERTS.list.find((a) => !a.end);
+  let status;
+  if (ALERTS.now === null) status = `<section class="alert-now">Сервер ще не отримав дані про тривоги. Зачекай хвилинку.</section>`;
+  else if (ALERTS.now) status = `<section class="alert-now on" role="status"><b>🚨 Зараз повітряна тривога в Києві</b>${open ? `<span>з ${hhmm(open.start)} · триває ${durStr(Date.now() - ts(open.start))}</span>` : ""}</section>`;
+  else status = `<section class="alert-now off" role="status"><b>Тривоги немає</b><span>перевірено о ${ALERTS.checked ? hhmm(ALERTS.checked) : "—"}</span></section>`;
+  const byDay = {};
+  for (const a of ALERTS.list) (byDay[a.start.slice(0, 10)] ||= []).push(a);
+  const days = Object.keys(byDay).sort().reverse();
+  const noBells = SCHOOL.bells.length ? "" : `<p class="muted small-note">Уроки й перерви рахуватимуться, коли на сайті будуть дзвінки.</p>`;
+  const list = days.map((d) => {
+    const items = byDay[d].slice().reverse().map((a) => {
+      const a0 = ts(a.start), a1 = a.end ? ts(a.end) : Date.now();
+      const hit = [];
+      if (SCHOOL.bells.length) {
+        const ls = plan(d);
+        ls.forEach(([n, tag], i) => {
+          const sp = lessonSpan(d, n);
+          const ov = sp ? Math.max(0, Math.min(a1, sp[1]) - Math.max(a0, sp[0])) : 0;
+          if (ov > 0) hit.push(`<li style="--c:${subj(tag).color}"><b>${n} урок · ${esc(subj(tag).name)}</b><span>${Math.round((ov / (sp[1] - sp[0])) * 100)}%</span></li>`);
+          const nx = ls[i + 1] && lessonSpan(d, ls[i + 1][0]);
+          if (sp && nx && Math.min(a1, nx[0]) > Math.max(a0, sp[1])) hit.push(`<li class="brk-hit"><b>Перерва після ${n} уроку</b></li>`);
+        });
+      }
+      return `<li class="alert-item${a.end ? "" : " live"}"><div class="ai-h"><b>${hhmm(a.start)}–${a.end ? hhmm(a.end) : "триває"}</b>
+        <span>${durStr(a1 - a0)}${a.approx ? " · кінець приблизно" : ""}</span></div>
+        ${hit.length ? `<ul class="hit">${hit.join("")}</ul>` : ""}</li>`;
+    }).join("");
+    return `<h2>${cap(relDay(d))} <span class="muted">· ${longDay(d)}</span></h2><ul class="alerts">${items}</ul>`;
+  }).join("");
+  return `<h1>Тривоги</h1><p class="sub">Повітряні тривоги в м. Київ і уроки, які вони зачепили.</p>${status}${noBells}
+    ${list || `<div class="empty">Поки що жодної тривоги не записано.</div>`}`;
 }
 
 // ---------- «Зараз» ----------
@@ -214,16 +317,21 @@ function nowCard() {
 }
 
 // ---------- сторінки ----------
+// «· 2 завдання · 1 тривога» — плашки тривог рахуються окремо
+function hwCount(list) {
+  const hw = list.filter((e) => !e.alert).length, al = list.length - hw;
+  return (hw ? ` · ${hw} ${plural(hw)}` : "") + (al ? ` · 🚨 ${al} ${al === 1 ? "урок під тривогою" : "уроки під тривогою"}` : "");
+}
 function home() {
   const due = byDue();
   const t = today();
   const days = Object.keys(due).filter((d) => d > t).sort();
-  let html = nowCard();
+  let html = (ALERTS.now ? `<a class="alert-line" href="#/alerts">🚨 Повітряна тривога в Києві</a>` : "") + nowCard();
   if (!days.length) {
     html += `<h1>Нічого не задано</h1><p class="sub">Найближчими днями здавати нічого.</p>`;
   } else {
     const first = days[0];
-    html += `<h1>Здати ${whenDay(first)}</h1><p class="sub">${longDay(first)} · ${due[first].length} ${plural(due[first].length)}</p>`;
+    html += `<h1>Здати ${whenDay(first)}</h1><p class="sub">${longDay(first)}${hwCount(due[first])}</p>`;
     html += sortSubj(due[first]).map((e) => card(e)).join("");
     const limit = iso(addDays(parse(first), 7));
     const next = days.slice(1).filter((d) => d <= limit);
@@ -250,9 +358,10 @@ function dayTable(s, legend = true) {
   }
   return `<ol class="lessons">${ls.map(([n, tag, r]) => {
     const b = bell(n);
-    return `<li style="--c:${subj(tag).color};--g:${groupColor(tag)}"><span class="ln">${n}</span>
+    const p = b ? alertPct(s, n) : 0;
+    return `<li class="${p ? "al" : ""}" style="--c:${subj(tag).color};--g:${groupColor(tag)};--ap:${p}%"><span class="ln">${n}</span>
       <a href="#/s/${encodeURIComponent(tag)}">${esc(subj(tag).name)}<i class="gdot"></i></a>
-      <span class="lr">${b ? `${b[0]}–${b[1]} · ` : ""}${room(r, tag)}</span></li>`;
+      <span class="lr">${p ? `<span class="apct" title="${p}% уроку під тривогою">🚨 ${p}%</span> · ` : ""}${b ? `${b[0]}–${b[1]} · ` : ""}${room(r, tag)}</span></li>`;
   }).join("")}</ol>${legend ? groupLegend() : ""}`;
 }
 
@@ -392,7 +501,7 @@ function cal() {
 
 function subjects() {
   const count = {};
-  for (const e of ALL) count[e.tag] = (count[e.tag] || 0) + 1;
+  for (const e of ALL) if (!e.alert) count[e.tag] = (count[e.tag] || 0) + 1;
   const tile = (t) => {
     const s = subj(t);
     const k = tagsOf(t).reduce((n, x) => n + (count[x] || 0), 0);
@@ -480,10 +589,11 @@ function render() {
   else if (h === "/week") { tab = "week"; html = weekPage(); }
   else if (h === "/files") { tab = "files"; html = filesPage(); }
   else if (h === "/secret") { tab = "secret"; html = secretPage(); }
+  else if (h === "/alerts") { tab = "alerts"; html = alertsPage(); }
   else html = home();
   app.innerHTML = html;
   document.querySelectorAll(".tabs a, .drawer a").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
-  document.getElementById("more").classList.toggle("on", ["subj", "files", "secret"].includes(tab));
+  document.getElementById("more").classList.toggle("on", ["subj", "files", "secret", "alerts"].includes(tab));
   setDrawer(false);
   clearInterval(timer);
   if (tab === "week" && SCHOOL.bells.length) {
@@ -562,12 +672,26 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") { viewer.h
 
 const get = (u, fallback) => fetch(`${u}?t=${Date.now()}`, { cache: "no-store" })
   .then((r) => (r.ok ? r.json() : fallback)).catch(() => fallback);
-Promise.all([get("data/homework.json", []), get("data/school.json", null), get("data/files.json", [])])
-  .then(([hw, school, files]) => {
+const okAlerts = (a) => a && Array.isArray(a.list);
+Promise.all([get("data/homework.json", []), get("data/school.json", null), get("data/files.json", []), get("data/alerts.json", null)])
+  .then(([hw, school, files, al]) => {
     RAW = Array.isArray(hw) ? hw : [];
-    applyPref();
     FILES = Array.isArray(files) ? files : [];
     if (school) SCHOOL = Object.assign(SCHOOL, school);
+    if (okAlerts(al)) ALERTS = al;
+    applyPref();
     render();
     if (!PREF) showSetup();
   });
+// Тривоги оновлюються кожні 30 с; сторінку перемальовуємо, лише коли щось змінилось
+setInterval(async () => {
+  const al = await get("data/alerts.json", null);
+  if (!okAlerts(al)) return;
+  const was = JSON.stringify([ALERTS.now, ALERTS.list]);
+  ALERTS = al;
+  const tab = decodeURIComponent(location.hash.slice(1) || "/");
+  if (was !== JSON.stringify([al.now, al.list]) || tab === "/alerts") {
+    applyPref();
+    if (!document.querySelector(".setup") && !drawer.classList.contains("open")) render();
+  }
+}, 30000);
