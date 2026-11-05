@@ -86,13 +86,49 @@ const linkify = (s) => esc(s).replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]]/g, (u) 
 const sizeStr = (b) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} МБ` : `${Math.max(1, Math.round(b / 1024))} КБ`);
 
 // ---------- дані ----------
-let ALL = [], FILES = [], SCHOOL = { days: {}, holidays: [], bells: [], teachers: {}, books: {} };
+let RAW = [], ALL = [], FILES = [], SCHOOL = { template: {}, weeks: {}, holidays: [], bells: [], teachers: {}, books: {} };
+
+// ---------- група й мова (обирає кожен сам, зберігається в браузері) ----------
+const PREF_KEY = "dz-pref";
+let PREF = (() => {
+  try {
+    const p = JSON.parse(localStorage.getItem(PREF_KEY));
+    return p && [1, 2].includes(p.group) && ["de", "es"].includes(p.lang) ? p : null;
+  } catch { return null; }
+})();
+const pref = () => PREF || { group: 1, lang: "de" };
+const otherLang = () => (pref().lang === "de" ? "Ісп" : "Нім");
+const applyPref = () => { ALL = RAW.filter((e) => e.tag !== otherLang()); };
+function savePref(p) {
+  PREF = p;
+  try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch { /* приватний режим — тільки до перезавантаження */ }
+  applyPref();
+}
+// Перемикачі: data-pg — група, data-pl — мова
+function prefSwitches(p) {
+  const seg = (attr, cur, opts, label) => `<div class="seg" role="group" aria-label="${label}">${opts.map(([v, t]) =>
+    `<button type="button" data-${attr}="${v}" aria-pressed="${cur === v}">${t}</button>`).join("")}</div>`;
+  return seg("pg", p.group, [[1, "1 група"], [2, "2 група"]], "Група") +
+    seg("pl", p.lang, [["de", "Німецька"], ["es", "Іспанська"]], "Мова");
+}
 const byDue = () => {
   const m = {};
   for (const e of ALL) if (e.due) (m[e.due] ||= []).push(e);
   return m;
 };
-const plan = (s) => SCHOOL.days[s] || [];
+// Уроки дня [[номер, тег, кабінет]] для обраної групи й мови
+function plan(s) {
+  const d = parse(s), wd = (d.getDay() + 6) % 7;
+  const slots = SCHOOL.template[wd];
+  if (!slots || SCHOOL.holidays.includes(s)) return [];
+  const conds = new Set([SCHOOL.weeks[iso(addDays(d, -wd))], "g" + pref().group, pref().lang]);
+  const out = [];
+  slots.forEach((opts, i) => {
+    const x = opts.find((o) => !o[2] || o[2].split(" ").every((c) => conds.has(c)));
+    if (x) out.push([i + 1, x[0], x[1]]);
+  });
+  return out;
+}
 const bell = (n) => SCHOOL.bells[n - 1];
 const teacher = (t) => SCHOOL.teachers[t] || "поки не знаю";
 const room = (r, tag) => (tag === "ФізРа" ? "зал" : !r ? "—" : /^\d/.test(r) ? `каб. ${esc(r)}` : esc(r));
@@ -224,22 +260,102 @@ const groupLegend = () =>
   `<p class="legend groups">${GROUPS.map(([name, c]) => `<span><i class="dot" style="--c:${c}"></i>${esc(name)}</span>`).join("")}</p>`;
 
 // ---------- Розклад на тиждень ----------
+const nowSec = () => { const d = new Date(); return d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds(); };
+// Чи закінчились сьогоднішні уроки (без дзвінків — після 15:00)
+function dayOver(s) {
+  const ls = plan(s), last = ls[ls.length - 1], b = last && bell(last[0]);
+  return nowSec() >= (b ? toMin(b[1]) : 15 * 60) * 60;
+}
+// День, що показується зверху: сьогодні, а якщо уроки скінчились — наступний навчальний
+function focusDay() {
+  const t = today();
+  return plan(t).length && !dayOver(t) ? t : nextSchoolDay(t);
+}
+function focusCard(s) {
+  if (!s) return `<section class="focus" id="focus"><div class="empty small">Найближчим часом уроків немає.</div></section>`;
+  const live = s === today() && SCHOOL.bells.length > 0;
+  const sec = nowSec(), ls = plan(s);
+  let rows = "", nextFound = false;
+  ls.forEach(([n, tag, r], i) => {
+    const b = bell(n);
+    let cls = "", right = `${b ? `${b[0]}–${b[1]} · ` : ""}${room(r, tag)}`;
+    if (live && b) {
+      const st = toMin(b[0]) * 60, en = toMin(b[1]) * 60;
+      if (sec >= en) cls = "past";
+      else if (sec >= st) {
+        cls = "cur"; nextFound = true;
+        right = `<span class="left">${i === ls.length - 1 ? "до кінця уроків" : "до перерви"} <b>${mmss(en - sec)}</b></span>`;
+      } else if (!nextFound) {
+        cls = "next"; nextFound = true;
+        rows += `<li class="brk" style="--c:transparent"><span>${i ? "Перерва" : "До початку уроків"}</span><span>ще <b>${mmss(st - sec)}</b></span></li>`;
+      }
+    }
+    rows += `<li class="${cls}" style="--c:${subj(tag).color};--g:${groupColor(tag)}"><span class="ln">${n}</span>
+      <a href="#/s/${encodeURIComponent(tag)}">${esc(subj(tag).name)}<i class="gdot"></i></a>
+      <span class="lr">${right}</span></li>`;
+  });
+  const head = s === today() ? "Сьогодні" : cap(relDay(s));
+  return `<section class="focus" id="focus"><div class="day-h"><b>${head}</b><span>${WD.includes(relDay(s)) ? short(s) : `${WD[parse(s).getDay()]}, ${short(s)}`}</span></div>
+    <ol class="lessons">${rows}</ol></section>`;
+}
+
 let weekOff = null;
 function weekPage() {
   const t = parse(today());
   if (weekOff === null) weekOff = t.getDay() === 0 || t.getDay() === 6 ? 1 : 0;
   const mon = addDays(t, -((t.getDay() + 6) % 7) + 7 * weekOff);
   const fri = addDays(mon, 4);
-  const type = (SCHOOL.weeks || {})[iso(mon)];
+  const type = SCHOOL.weeks[iso(mon)];
   const title = weekOff === 0 ? "Цей тиждень" : weekOff === 1 ? "Наступний тиждень" : weekOff === -1 ? "Минулий тиждень" : "Тиждень";
+  const focus = focusDay();
   const days = [0, 1, 2, 3, 4].map((i) => {
     const s = iso(addDays(mon, i));
-    return `<div class="week-day${s === today() ? " is-today" : ""}"><div class="day-h"><b>${cap(WD[parse(s).getDay()])}</b><span>${short(s)}${s === today() ? " · сьогодні" : ""}</span></div>${dayTable(s, false)}</div>`;
+    const h = `<div class="day-h"><b>${cap(WD[parse(s).getDay()])}</b><span>${short(s)}${s === today() ? " · сьогодні" : ""}</span></div>`;
+    return s === focus
+      ? `<div class="week-day">${h}<button type="button" class="moved" data-top>↑ Показано зверху</button></div>`
+      : `<div class="week-day">${h}${dayTable(s, false)}</div>`;
   }).join("");
-  return `<div class="cal-nav"><button data-week="-1" aria-label="Попередній тиждень">‹</button>
+  return `<div class="prefs">${prefSwitches(pref())}</div>
+    ${focusCard(focus)}
+    <div class="cal-nav"><button data-week="-1" aria-label="Попередній тиждень">‹</button>
       <div class="week-t"><h1>${title}</h1><span>${short(iso(mon))} – ${short(iso(fri))}${type ? ` · тиждень ${type === "A" ? "А" : "Б"}` : ""}</span></div>
       <button data-week="1" aria-label="Наступний тиждень">›</button></div>
     ${groupLegend()}<div class="week">${days}</div>`;
+}
+
+// Перше відкриття сайту: питаємо групу й мову
+function showSetup() {
+  const draft = { group: null, lang: null };
+  const box = document.createElement("div");
+  box.className = "setup";
+  box.innerHTML = `<div class="setup-box" role="dialog" aria-modal="true" aria-labelledby="setup-h">
+    <h2 id="setup-h">Привіт! 👋</h2>
+    <p>Обери свою групу й мову — сайт покаже твій розклад. Змінити можна у вкладці «Розклад».</p>
+    <div class="q">Група</div><div class="slot-g"></div>
+    <div class="q">Друга іноземна</div><div class="slot-l"></div>
+    <button type="button" class="go" disabled>Готово</button></div>`;
+  const draw = () => {
+    const sw = document.createElement("div");
+    sw.innerHTML = prefSwitches(draft);
+    box.querySelector(".slot-g").replaceChildren(sw.children[0]);
+    box.querySelector(".slot-l").replaceChildren(sw.children[0]);
+    box.querySelector(".go").disabled = !(draft.group && draft.lang);
+  };
+  box.addEventListener("click", (ev) => {
+    const g = ev.target.closest("[data-pg]"), l = ev.target.closest("[data-pl]");
+    if (g) { draft.group = Number(g.dataset.pg); draw(); }
+    if (l) { draft.lang = l.dataset.pl; draw(); }
+    if (ev.target.closest(".go") && draft.group && draft.lang) {
+      savePref({ group: draft.group, lang: draft.lang });
+      box.remove();
+      document.body.classList.remove("no-scroll");
+      render();
+    }
+  });
+  draw();
+  document.body.append(box);
+  document.body.classList.add("no-scroll");
+  box.querySelector("button").focus();
 }
 
 let calMonth = null, calSel = null;
@@ -286,7 +402,7 @@ function subjects() {
       <b>${esc(s.name)}</b><span>${k ? `${k} ${plural(k)}` : "ДЗ поки немає"}${book}</span></a>`;
   };
   const groups = GROUPS.map(([name, , tags]) =>
-    `<h2 class="group">${esc(name)}</h2><div class="tiles">${tags.map(tile).join("")}</div>`).join("");
+    `<h2 class="group">${esc(name)}</h2><div class="tiles">${tags.filter((t) => t !== otherLang()).map(tile).join("")}</div>`).join("");
   return `<h1>Предмети</h1><p class="sub">Розклад, підручник і всі ДЗ предмета.</p>${groups}`;
 }
 
@@ -370,6 +486,15 @@ function render() {
   document.getElementById("more").classList.toggle("on", ["subj", "files", "secret"].includes(tab));
   setDrawer(false);
   clearInterval(timer);
+  if (tab === "week" && SCHOOL.bells.length) {
+    const shown = focusDay();
+    timer = setInterval(() => {
+      const f = focusDay();
+      if (f !== shown) return render();
+      const el = document.getElementById("focus");
+      if (el) el.outerHTML = focusCard(f);
+    }, 1000);
+  }
   if (tab === "home" && SCHOOL.bells.length) {
     timer = setInterval(() => {
       const el = document.getElementById("now");
@@ -382,6 +507,12 @@ window.addEventListener("hashchange", () => { render(); scrollTo(0, 0); });
 app.addEventListener("click", (ev) => {
   const day = ev.target.closest("[data-day]");
   if (day) { calSel = day.dataset.day; render(); return; }
+  const pg = ev.target.closest("[data-pg]"), pl = ev.target.closest("[data-pl]");
+  if (pg || pl) {
+    savePref({ ...pref(), ...(pg ? { group: Number(pg.dataset.pg) } : { lang: pl.dataset.pl }) });
+    render(); return;
+  }
+  if (ev.target.closest("[data-top]")) { scrollTo({ top: 0, behavior: "smooth" }); return; }
   const wk = ev.target.closest("[data-week]");
   if (wk) { weekOff += Number(wk.dataset.week); render(); return; }
   const mon = ev.target.closest("[data-mon]");
@@ -433,8 +564,10 @@ const get = (u, fallback) => fetch(`${u}?t=${Date.now()}`, { cache: "no-store" }
   .then((r) => (r.ok ? r.json() : fallback)).catch(() => fallback);
 Promise.all([get("data/homework.json", []), get("data/school.json", null), get("data/files.json", [])])
   .then(([hw, school, files]) => {
-    ALL = Array.isArray(hw) ? hw : [];
+    RAW = Array.isArray(hw) ? hw : [];
+    applyPref();
     FILES = Array.isArray(files) ? files : [];
     if (school) SCHOOL = Object.assign(SCHOOL, school);
     render();
+    if (!PREF) showSetup();
   });
