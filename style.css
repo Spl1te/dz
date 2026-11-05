@@ -322,3 +322,22 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: v
   display: block; margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r);
   background: var(--danger); color: #fff; font-weight: 700; text-decoration: none;
 }
+
+/* галочки й групи */
+.card .head { gap: 8px; justify-content: flex-start; align-items: center; }
+.card .head .dates { margin-left: auto; }
+.check {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--line);
+  background: var(--card); cursor: pointer; padding: 0; display: grid; place-items: center; color: var(--on-accent);
+}
+.check:hover { border-color: var(--c, var(--accent)); }
+.check[aria-checked="true"] { background: var(--c, var(--accent)); border-color: var(--c, var(--accent)); }
+.check[aria-checked="true"]::after { content: "✓"; font-size: 15px; font-weight: 800; line-height: 1; color: #fff; }
+.card.is-done .hw { text-decoration: line-through; color: var(--muted); }
+.card.is-done { opacity: .75; }
+.card.leaving { animation: leave .6s ease forwards; }
+@keyframes leave { 0%, 45% { opacity: .75; } 100% { opacity: 0; transform: translateX(24px); } }
+@media (prefers-reduced-motion: reduce) { .card.leaving { animation: none; } }
+.grp { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.card.not-mine { opacity: .6; }
+.card.not-mine .grp { background: var(--line); color: var(--muted); }

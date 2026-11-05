@@ -98,7 +98,28 @@ let PREF = (() => {
 })();
 const pref = () => PREF || { group: 1, lang: "de", ukr: 1 };
 const otherLang = () => (pref().lang === "de" ? "Ісп" : "Нім");
-const applyPref = () => { ALL = RAW.filter((e) => e.tag !== otherLang()).concat(alertEntries()); };
+const applyPref = () => { ALL = RAW.concat(alertEntries()); };
+// Чи це ДЗ для мене (моя група / мова / вчителька). Чуже видно лише в календарі й «Предметах».
+function isMine(e) {
+  if (e.tag === otherLang()) return false;
+  const kind = (SCHOOL.split || {})[e.tag];
+  if (!kind || !e.grp) return true;
+  return e.grp === (kind === "u" ? pref().ukr : pref().group);
+}
+function grpLabel(e) {
+  const kind = (SCHOOL.split || {})[e.tag];
+  if (!kind || !e.grp) return "";
+  return kind === "u" ? (e.grp === 2 ? "Ганна" : "укр. «—»") : `${e.grp} група`;
+}
+
+// ---------- виконане (галочки, зберігаються в браузері) ----------
+const DONE_KEY = "dz-done";
+let DONE = (() => { try { return new Set(JSON.parse(localStorage.getItem(DONE_KEY)) || []); } catch { return new Set(); } })();
+function setDone(id, on) {
+  if (on) DONE.add(id); else DONE.delete(id);
+  try { localStorage.setItem(DONE_KEY, JSON.stringify([...DONE])); } catch { /* приватний режим */ }
+}
+const isDone = (e) => DONE.has(String(e.id));
 function savePref(p) {
   PREF = p;
   try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch { /* приватний режим — тільки до перезавантаження */ }
@@ -112,9 +133,9 @@ function prefSwitches(p) {
     seg("pl", p.lang, [["de", "Німецька"], ["es", "Іспанська"]], "Мова") +
     seg("pu", p.ukr, [[2, "Укр. мова: Ганна"], [1, "Укр. мова: —"]], "Українська мова");
 }
-const byDue = () => {
+const byDue = (list = ALL) => {
   const m = {};
-  for (const e of ALL) if (e.due) (m[e.due] ||= []).push(e);
+  for (const e of list) if (e.due) (m[e.due] ||= []).push(e);
   return m;
 };
 // Уроки дня [[номер, тег, кабінет]] для обраної групи й мови
@@ -161,9 +182,11 @@ function card(e, { showSubj = true } = {}) {
     }).join("");
     taskHtml = `<details class="tasks"><summary>Завдання <span>${tasks.length}</span></summary>${body}</details>`;
   }
-  return `<article class="card" style="--c:${s.color}">
-    <div class="head">${showSubj ? `<a class="subj" href="#/s/${encodeURIComponent(e.tag)}">${esc(s.name)}</a>` : "<span></span>"}
-      <span class="dates">${dates}</span></div>
+  const done = isDone(e), g = grpLabel(e);
+  const check = `<button type="button" class="check" data-done="${esc(e.id)}" role="checkbox" aria-checked="${done}" aria-label="${done ? "Повернути в невиконане" : "Позначити виконаним"}"></button>`;
+  return `<article class="card${done ? " is-done" : ""}${isMine(e) ? "" : " not-mine"}" style="--c:${s.color}">
+    <div class="head">${check}${showSubj ? `<a class="subj" href="#/s/${encodeURIComponent(e.tag)}">${esc(s.name)}</a>` : "<span></span>"}
+      ${g ? `<span class="grp">${esc(g)}</span>` : ""}<span class="dates">${dates}</span></div>
     <p class="hw">${linkify(e.homework)}</p>
     ${photos ? `<div class="thumbs">${photos}</div>` : ""}
     ${taskHtml}
@@ -231,6 +254,11 @@ function alertEntries() {
     }
   }
   return out;
+}
+function donePage() {
+  const list = ALL.filter((e) => isDone(e)).sort((a, b) => (b.due || b.given).localeCompare(a.due || a.given));
+  return `<h1>Виконане</h1><p class="sub">ДЗ, які ти позначив галочкою. Зніми галочку — і воно повернеться на головну.</p>
+    ${list.length ? list.map((e) => card(e)).join("") : `<div class="empty">Поки нічого не позначено.</div>`}`;
 }
 function alertsPage() {
   const open = ALERTS.list.find((a) => !a.end);
@@ -324,7 +352,8 @@ function hwCount(list) {
   return (hw ? ` · ${hw} ${plural(hw)}` : "") + (al ? ` · 🚨 ${al} ${al === 1 ? "урок під тривогою" : "уроки під тривогою"}` : "");
 }
 function home() {
-  const due = byDue();
+  const mine = ALL.filter((e) => isMine(e) && !isDone(e));
+  const due = byDue(mine);
   const t = today();
   const days = Object.keys(due).filter((d) => d > t).sort();
   let html = (ALERTS.now ? `<a class="alert-line" href="#/alerts">🚨 Повітряна тривога в Києві</a>` : "") + nowCard();
@@ -344,9 +373,11 @@ function home() {
       }
     }
   }
-  const nodue = ALL.filter((e) => !e.due && e.given >= iso(addDays(new Date(), -14)));
+  const nodue = mine.filter((e) => !e.due && e.given >= iso(addDays(new Date(), -14)));
   if (nodue.length) html += `<h2>Без дати здачі</h2>` + nodue.map((e) => card(e)).join("");
   if (!ALL.length) html += `<div class="empty">Тут зʼявиться ДЗ, щойно бот його опублікує.</div>`;
+  const doneN = ALL.filter((e) => isMine(e) && isDone(e) && e.due && e.due > today()).length;
+  if (doneN) html += `<p class="legend"><a href="#/done">✔ Виконано: ${doneN}</a></p>`;
   return html;
 }
 
@@ -516,7 +547,7 @@ function subjects() {
       <b>${esc(s.name)}</b><span>${k ? `${k} ${plural(k)}` : "ДЗ поки немає"}${book}</span></a>`;
   };
   const groups = GROUPS.map(([name, , tags]) =>
-    `<h2 class="group">${esc(name)}</h2><div class="tiles">${tags.filter((t) => t !== otherLang()).map(tile).join("")}</div>`).join("");
+    `<h2 class="group">${esc(name)}</h2><div class="tiles">${tags.map(tile).join("")}</div>`).join("");
   return `<h1>Предмети</h1><p class="sub">Розклад, підручник і всі ДЗ предмета.</p>${groups}`;
 }
 
@@ -595,10 +626,11 @@ function render() {
   else if (h === "/files") { tab = "files"; html = filesPage(); }
   else if (h === "/secret") { tab = "secret"; html = secretPage(); }
   else if (h === "/alerts") { tab = "alerts"; html = alertsPage(); }
+  else if (h === "/done") { tab = "done"; html = donePage(); }
   else html = home();
   app.innerHTML = html;
   document.querySelectorAll(".tabs a, .drawer a").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
-  document.getElementById("more").classList.toggle("on", ["subj", "files", "secret", "alerts"].includes(tab));
+  document.getElementById("more").classList.toggle("on", ["subj", "files", "secret", "alerts", "done"].includes(tab));
   setDrawer(false);
   clearInterval(timer);
   if (tab === "week" && SCHOOL.bells.length) {
@@ -622,6 +654,19 @@ window.addEventListener("hashchange", () => { render(); scrollTo(0, 0); });
 app.addEventListener("click", (ev) => {
   const day = ev.target.closest("[data-day]");
   if (day) { calSel = day.dataset.day; render(); return; }
+  const chk = ev.target.closest("[data-done]");
+  if (chk) {
+    const id = chk.dataset.done, on = !DONE.has(id);
+    setDone(id, on);
+    const onHome = (location.hash.slice(1) || "/") === "/";
+    if (on && onHome) {
+      const c = chk.closest(".card");
+      c.classList.add("is-done", "leaving");
+      chk.setAttribute("aria-checked", "true");
+      setTimeout(render, 650); // викреслюється, потім зникає
+    } else render();
+    return;
+  }
   const pg = ev.target.closest("[data-pg]"), pl = ev.target.closest("[data-pl]"), pu = ev.target.closest("[data-pu]");
   if (pg || pl || pu) {
     savePref({ ...pref(), ...(pg ? { group: Number(pg.dataset.pg) } : pl ? { lang: pl.dataset.pl } : { ukr: Number(pu.dataset.pu) }) });
