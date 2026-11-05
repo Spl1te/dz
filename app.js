@@ -95,7 +95,7 @@ const byDue = () => {
 const plan = (s) => SCHOOL.days[s] || [];
 const bell = (n) => SCHOOL.bells[n - 1];
 const teacher = (t) => SCHOOL.teachers[t] || "поки не знаю";
-const room = (r, tag) => (tag === "ФізРа" ? "зал" : r ? `каб. ${esc(r)}` : "—");
+const room = (r, tag) => (tag === "ФізРа" ? "зал" : !r ? "—" : /^\d/.test(r) ? `каб. ${esc(r)}` : esc(r));
 const bookUrl = (slug, page) => `books/${encodeURIComponent(slug)}.pdf${page ? `#page=${page}` : ""}`;
 const rank = (t) => { const i = ORDER.indexOf(t); return i < 0 ? 999 : i; };
 const sortSubj = (list) => [...list].sort((a, b) => rank(a.tag) - rank(b.tag));
