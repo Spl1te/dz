@@ -183,10 +183,11 @@ function card(e, { showSubj = true } = {}) {
     taskHtml = `<details class="tasks"><summary>Завдання <span>${tasks.length}</span></summary>${body}</details>`;
   }
   const done = isDone(e), g = grpLabel(e);
+  const del = ADMIN_TOKEN ? `<button type="button" class="del" data-del="${esc(e.id)}" aria-label="Видалити ДЗ">🗑</button>` : "";
   const check = `<button type="button" class="check" data-done="${esc(e.id)}" role="checkbox" aria-checked="${done}" aria-label="${done ? "Повернути в невиконане" : "Позначити виконаним"}"></button>`;
   return `<article class="card${done ? " is-done" : ""}${isMine(e) ? "" : " not-mine"}" style="--c:${s.color}">
     <div class="head">${check}${showSubj ? `<a class="subj" href="#/s/${encodeURIComponent(e.tag)}">${esc(s.name)}</a>` : "<span></span>"}
-      ${g ? `<span class="grp">${esc(g)}</span>` : ""}<span class="dates">${dates}</span></div>
+      ${g ? `<span class="grp">${esc(g)}</span>` : ""}<span class="dates">${dates}</span>${del}</div>
     <p class="hw">${linkify(e.homework)}</p>
     ${photos ? `<div class="thumbs">${photos}</div>` : ""}
     ${taskHtml}
@@ -602,9 +603,17 @@ function filesPage() {
 }
 
 let secretHtml = null;
+// Ключ видалення ДЗ: сервер видає його після правильного пароля «Секрету», живе до закриття вкладки
+let ADMIN_TOKEN = (() => { try { return sessionStorage.getItem("dz-admin"); } catch { return null; } })();
+function setToken(t) {
+  ADMIN_TOKEN = t;
+  try { t ? sessionStorage.setItem("dz-admin", t) : sessionStorage.removeItem("dz-admin"); } catch { /* приватний режим */ }
+}
 function secretPage() {
+  const mode = ADMIN_TOKEN ? `<div class="unlock">🔓 Видалення ДЗ увімкнено: на картках зʼявилась кнопка 🗑.
+      <button type="button" data-lockout>Вимкнути</button></div>` : "";
   if (secretHtml !== null) {
-    return `<h1>Секрет</h1>${secretHtml || `<div class="empty">Тут поки порожньо.</div>`}`;
+    return `<h1>Секрет</h1>${mode}${secretHtml || `<div class="empty">Тут поки порожньо.</div>`}`;
   }
   return `<h1>Секрет</h1><form class="lock" id="lock" autocomplete="off">
       <p class="sub">Введи пароль, щоб побачити вміст.</p>
@@ -654,6 +663,9 @@ window.addEventListener("hashchange", () => { render(); scrollTo(0, 0); });
 app.addEventListener("click", (ev) => {
   const day = ev.target.closest("[data-day]");
   if (day) { calSel = day.dataset.day; render(); return; }
+  if (ev.target.closest("[data-lockout]")) { setToken(null); render(); return; }
+  const delBtn = ev.target.closest("[data-del]");
+  if (delBtn) { deleteHw(delBtn.dataset.del); return; }
   const chk = ev.target.closest("[data-done]");
   if (chk) {
     const id = chk.dataset.done, on = !DONE.has(id);
@@ -690,7 +702,7 @@ app.addEventListener("submit", async (ev) => {
   try {
     const r = await fetch("api/secret", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw }) });
     const j = await r.json();
-    if (j.ok) { secretHtml = j.html || ""; render(); }
+    if (j.ok) { secretHtml = j.html || ""; if (j.token) setToken(j.token); render(); }
     else err.textContent = j.error || "Неправильний пароль";
   } catch {
     err.textContent = "Немає звʼязку із сервером";
@@ -714,6 +726,18 @@ moreBtn.addEventListener("click", () => setDrawer(!drawer.classList.contains("op
 backdrop.addEventListener("click", () => setDrawer(false));
 document.getElementById("drawer-close").addEventListener("click", () => setDrawer(false));
 drawer.addEventListener("click", (e) => { if (e.target.closest("a")) setDrawer(false); });
+
+async function deleteHw(id) {
+  const e = RAW.find((x) => String(x.id) === id);
+  if (!e || !confirm(`Видалити ДЗ з предмета «${subj(e.tag).name}» (${short(e.given)}) із сайту?`)) return;
+  try {
+    const r = await fetch("api/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: ADMIN_TOKEN, id }) });
+    const j = await r.json();
+    if (r.status === 401) { setToken(null); render(); alert("Ключ застарів — введи код у «Секреті» ще раз."); return; }
+    if (j.ok || r.status === 404) { RAW = RAW.filter((x) => String(x.id) !== id); applyPref(); render(); }
+    else alert(j.error || "Не вдалося видалити");
+  } catch { alert("Немає звʼязку із сервером"); }
+}
 
 const viewer = document.getElementById("viewer");
 function openViewer(src) { viewer.querySelector("img").src = src; viewer.hidden = false; }

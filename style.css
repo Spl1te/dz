@@ -341,3 +341,10 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: v
 .grp { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
 .card.not-mine { opacity: .6; }
 .card.not-mine .grp { background: var(--line); color: var(--muted); }
+
+/* видалення ДЗ (після коду «Секрету») */
+.del { border: 1px solid var(--line); background: var(--card); border-radius: 8px; width: 32px; height: 28px; cursor: pointer; font-size: 14px; }
+.del:hover { border-color: var(--danger); background: var(--danger-soft); }
+.unlock { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding: 12px 14px; margin: 8px 0 16px; border-radius: var(--r); background: var(--accent-soft); font-size: 14px; }
+.unlock button { border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
