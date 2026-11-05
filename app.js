@@ -93,10 +93,10 @@ const PREF_KEY = "dz-pref";
 let PREF = (() => {
   try {
     const p = JSON.parse(localStorage.getItem(PREF_KEY));
-    return p && [1, 2].includes(p.group) && ["de", "es"].includes(p.lang) ? p : null;
+    return p && [1, 2].includes(p.group) && ["de", "es"].includes(p.lang) && [1, 2].includes(p.ukr) ? p : null;
   } catch { return null; }
 })();
-const pref = () => PREF || { group: 1, lang: "de" };
+const pref = () => PREF || { group: 1, lang: "de", ukr: 1 };
 const otherLang = () => (pref().lang === "de" ? "Ісп" : "Нім");
 const applyPref = () => { ALL = RAW.filter((e) => e.tag !== otherLang()).concat(alertEntries()); };
 function savePref(p) {
@@ -104,12 +104,13 @@ function savePref(p) {
   try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch { /* приватний режим — тільки до перезавантаження */ }
   applyPref();
 }
-// Перемикачі: data-pg — група, data-pl — мова
+// Перемикачі: data-pg — група, data-pl — мова, data-pu — з ким українська мова
 function prefSwitches(p) {
   const seg = (attr, cur, opts, label) => `<div class="seg" role="group" aria-label="${label}">${opts.map(([v, t]) =>
     `<button type="button" data-${attr}="${v}" aria-pressed="${cur === v}">${t}</button>`).join("")}</div>`;
   return seg("pg", p.group, [[1, "1 група"], [2, "2 група"]], "Група") +
-    seg("pl", p.lang, [["de", "Німецька"], ["es", "Іспанська"]], "Мова");
+    seg("pl", p.lang, [["de", "Німецька"], ["es", "Іспанська"]], "Мова") +
+    seg("pu", p.ukr, [[2, "Укр. мова: Ганна"], [1, "Укр. мова: —"]], "Українська мова");
 }
 const byDue = () => {
   const m = {};
@@ -121,7 +122,7 @@ function plan(s) {
   const d = parse(s), wd = (d.getDay() + 6) % 7;
   const slots = SCHOOL.template[wd];
   if (!slots || SCHOOL.holidays.includes(s)) return [];
-  const conds = new Set([SCHOOL.weeks[iso(addDays(d, -wd))], "g" + pref().group, pref().lang]);
+  const conds = new Set([SCHOOL.weeks[iso(addDays(d, -wd))], "g" + pref().group, pref().lang, "u" + pref().ukr]);
   const out = [];
   slots.forEach((opts, i) => {
     const x = opts.find((o) => !o[2] || o[2].split(" ").every((c) => conds.has(c)));
@@ -434,28 +435,32 @@ function weekPage() {
 
 // Перше відкриття сайту: питаємо групу й мову
 function showSetup() {
-  const draft = { group: null, lang: null };
+  const draft = { group: null, lang: null, ukr: null };
   const box = document.createElement("div");
   box.className = "setup";
   box.innerHTML = `<div class="setup-box" role="dialog" aria-modal="true" aria-labelledby="setup-h">
     <h2 id="setup-h">Привіт! 👋</h2>
-    <p>Обери свою групу й мову — сайт покаже твій розклад. Змінити можна у вкладці «Розклад».</p>
+    <p>Обери групу, мову й учительку української — сайт покаже твій розклад. Змінити можна у вкладці «Розклад».</p>
     <div class="q">Група</div><div class="slot-g"></div>
     <div class="q">Друга іноземна</div><div class="slot-l"></div>
+    <div class="q">Українська мова з…</div><div class="slot-u"></div>
     <button type="button" class="go" disabled>Готово</button></div>`;
   const draw = () => {
     const sw = document.createElement("div");
     sw.innerHTML = prefSwitches(draft);
     box.querySelector(".slot-g").replaceChildren(sw.children[0]);
     box.querySelector(".slot-l").replaceChildren(sw.children[0]);
-    box.querySelector(".go").disabled = !(draft.group && draft.lang);
+    box.querySelector(".slot-u").replaceChildren(sw.children[0]);
+    box.querySelector(".go").disabled = !(draft.group && draft.lang && draft.ukr);
   };
   box.addEventListener("click", (ev) => {
     const g = ev.target.closest("[data-pg]"), l = ev.target.closest("[data-pl]");
     if (g) { draft.group = Number(g.dataset.pg); draw(); }
     if (l) { draft.lang = l.dataset.pl; draw(); }
-    if (ev.target.closest(".go") && draft.group && draft.lang) {
-      savePref({ group: draft.group, lang: draft.lang });
+    const u = ev.target.closest("[data-pu]");
+    if (u) { draft.ukr = Number(u.dataset.pu); draw(); }
+    if (ev.target.closest(".go") && draft.group && draft.lang && draft.ukr) {
+      savePref({ group: draft.group, lang: draft.lang, ukr: draft.ukr });
       box.remove();
       document.body.classList.remove("no-scroll");
       render();
@@ -617,9 +622,9 @@ window.addEventListener("hashchange", () => { render(); scrollTo(0, 0); });
 app.addEventListener("click", (ev) => {
   const day = ev.target.closest("[data-day]");
   if (day) { calSel = day.dataset.day; render(); return; }
-  const pg = ev.target.closest("[data-pg]"), pl = ev.target.closest("[data-pl]");
-  if (pg || pl) {
-    savePref({ ...pref(), ...(pg ? { group: Number(pg.dataset.pg) } : { lang: pl.dataset.pl }) });
+  const pg = ev.target.closest("[data-pg]"), pl = ev.target.closest("[data-pl]"), pu = ev.target.closest("[data-pu]");
+  if (pg || pl || pu) {
+    savePref({ ...pref(), ...(pg ? { group: Number(pg.dataset.pg) } : pl ? { lang: pl.dataset.pl } : { ukr: Number(pu.dataset.pu) }) });
     render(); return;
   }
   if (ev.target.closest("[data-top]")) { scrollTo({ top: 0, behavior: "smooth" }); return; }
