@@ -215,7 +215,7 @@ function dayTable(s) {
   return `<ol class="lessons">${ls.map(([n, tag, r]) => {
     const b = bell(n);
     return `<li style="--c:${subj(tag).color};--g:${groupColor(tag)}"><span class="ln">${n}</span>
-      <a href="#/s/${encodeURIComponent(tag)}">${esc(subj(tag).name)}</a>
+      <a href="#/s/${encodeURIComponent(tag)}">${esc(subj(tag).name)}<i class="gdot"></i></a>
       <span class="lr">${b ? `${b[0]}–${b[1]} · ` : ""}${room(r)}</span></li>`;
   }).join("")}</ol>
     <p class="legend groups">${GROUPS.map(([name, c]) => `<span><i class="dot" style="--c:${c}"></i>${esc(name)}</span>`).join("")}</p>`;
