@@ -415,7 +415,7 @@ function dayTable(s, legend = true) {
     const b = bell(n, s);
     const p = b ? alertPct(s, n) : 0;
     return `<li class="${p ? "al" : ""}" style="--c:${subj(tag).color};--g:${groupColor(tag)};--ap:${p}%"><span class="ln">${n}</span>
-      <span class="nm"><a href="#/s/${encodeURIComponent(tag)}">${esc(subj(tag).name)}<i class="gdot"></i></a><small class="tch">${esc(shortName(teacher(tag)))}</small></span>
+      <span class="nm"><a href="#/s/${encodeURIComponent(tag)}">${esc(subj(tag).name)}<i class="gdot"></i></a></span>
       <span class="lr">${p ? `<span class="apct" title="${p}% уроку під тривогою">🚨 ${p}%</span> · ` : ""}${b ? `${b[0]}–${b[1]} · ` : ""}${room(r, tag)}</span></li>`;
   }).join("")}</ol>${isShort(s) ? `<p class="short-note">⏱ Скорочені уроки</p>` : ""}${legend ? groupLegend() : ""}`;
 }
@@ -455,7 +455,7 @@ function focusCard(s) {
       }
     }
     rows += `<li class="${cls}" style="--c:${subj(tag).color};--g:${groupColor(tag)}"><span class="ln">${n}</span>
-      <span class="nm"><a href="#/s/${encodeURIComponent(tag)}">${esc(subj(tag).name)}<i class="gdot"></i></a><small class="tch">${esc(shortName(teacher(tag)))}</small></span>
+      <span class="nm"><a href="#/s/${encodeURIComponent(tag)}">${esc(subj(tag).name)}<i class="gdot"></i></a>${cls === "cur" ? `<small class="tch">${esc(shortName(teacher(tag)))}</small>` : ""}</span>
       <span class="lr">${right}</span></li>`;
   });
   const head = s === today() ? "Сьогодні" : cap(relDay(s));
