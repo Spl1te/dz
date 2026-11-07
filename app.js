@@ -93,10 +93,10 @@ const PREF_KEY = "dz-pref";
 let PREF = (() => {
   try {
     const p = JSON.parse(localStorage.getItem(PREF_KEY));
-    return p && [1, 2].includes(p.group) && ["de", "es"].includes(p.lang) && [1, 2].includes(p.ukr) ? p : null;
+    return p && [1, 2].includes(p.group) && ["de", "es"].includes(p.lang) && [1, 2].includes(p.ukr) && [1, 2].includes(p.tech) ? p : null;
   } catch { return null; }
 })();
-const pref = () => PREF || { group: 1, lang: "de", ukr: 1 };
+const pref = () => PREF || { group: 1, lang: "de", ukr: 1, tech: 1 };
 const otherLang = () => (pref().lang === "de" ? "Ісп" : "Нім");
 const applyPref = () => { ALL = RAW.concat(alertEntries()); };
 // Чи це ДЗ для мене (моя група / мова / вчителька). Чуже видно лише в календарі й «Предметах».
@@ -104,12 +104,14 @@ function isMine(e) {
   if (e.tag === otherLang()) return false;
   const kind = (SCHOOL.split || {})[e.tag];
   if (!kind || !e.grp) return true;
-  return e.grp === (kind === "u" ? pref().ukr : pref().group);
+  return e.grp === (kind === "u" ? pref().ukr : kind === "t" ? pref().tech : pref().group);
 }
 function grpLabel(e) {
   const kind = (SCHOOL.split || {})[e.tag];
   if (!kind || !e.grp) return "";
-  return kind === "u" ? (e.grp === 2 ? "Ганна" : "укр. «—»") : `${e.grp} група`;
+  if (kind === "u") return e.grp === 2 ? "Ганна" : "Ольга";
+  if (kind === "t") return e.grp === 2 ? "хлопці" : "дівчата";
+  return `${e.grp} група`;
 }
 
 // ---------- виконане (галочки, зберігаються в браузері) ----------
@@ -125,13 +127,14 @@ function savePref(p) {
   try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch { /* приватний режим — тільки до перезавантаження */ }
   applyPref();
 }
-// Перемикачі: data-pg — група, data-pl — мова, data-pu — з ким українська мова
+// Перемикачі: data-pg — група, data-pl — мова, data-pu — з ким українська, data-pt — технології
 function prefSwitches(p) {
   const seg = (attr, cur, opts, label) => `<div class="seg" role="group" aria-label="${label}">${opts.map(([v, t]) =>
     `<button type="button" data-${attr}="${v}" aria-pressed="${cur === v}">${t}</button>`).join("")}</div>`;
   return seg("pg", p.group, [[1, "1 група"], [2, "2 група"]], "Група") +
     seg("pl", p.lang, [["de", "Німецька"], ["es", "Іспанська"]], "Мова") +
-    seg("pu", p.ukr, [[2, "Укр. мова: Ганна"], [1, "Укр. мова: —"]], "Українська мова");
+    seg("pu", p.ukr, [[2, "Укр.: Ганна"], [1, "Укр.: Ольга"]], "Українська мова") +
+    seg("pt", p.tech, [[1, "Техн.: дівчинка"], [2, "Техн.: хлопчик"]], "Технології");
 }
 const byDue = (list = ALL) => {
   const m = {};
@@ -143,7 +146,7 @@ function plan(s) {
   const d = parse(s), wd = (d.getDay() + 6) % 7;
   const slots = SCHOOL.template[wd];
   if (!slots || SCHOOL.holidays.includes(s)) return [];
-  const conds = new Set([SCHOOL.weeks[iso(addDays(d, -wd))], "g" + pref().group, pref().lang, "u" + pref().ukr]);
+  const conds = new Set([SCHOOL.weeks[iso(addDays(d, -wd))], "g" + pref().group, pref().lang, "u" + pref().ukr, "t" + pref().tech]);
   const out = [];
   slots.forEach((opts, i) => {
     const x = opts.find((o) => !o[2] || o[2].split(" ").every((c) => conds.has(c)));
@@ -151,10 +154,22 @@ function plan(s) {
   });
   return out;
 }
-const bell = (n) => SCHOOL.bells[n - 1];
-const teacher = (t) => SCHOOL.teachers[t] || "поки не знаю";
+// Дзвінки дня: у скорочені дні (short_days) — скорочені
+const isShort = (day) => (SCHOOL.short_days || []).includes(day) && (SCHOOL.bells_short || []).length > 0;
+const bellsOf = (day = today()) => (isShort(day) ? SCHOOL.bells_short : SCHOOL.bells);
+const bell = (n, day = today()) => bellsOf(day)[n - 1];
+// Учитель з урахуванням групи / вчительки української / «дівчинка-хлопчик» для технологій
+function teacher(t) {
+  const v = SCHOOL.teachers[t];
+  if (!v) return "поки не знаю";
+  if (typeof v === "string") return v;
+  const p = pref();
+  return v[`g${p.group}`] || v[`u${p.ukr}`] || v[`t${p.tech}`] || Object.values(v).join(", ");
+}
+const shortName = (full) => { const [f, n, m] = String(full).split(" "); return n ? `${f} ${n[0]}.${m ? ` ${m[0]}.` : ""}` : full; };
 const room = (r, tag) => (tag === "ФізРа" ? "зал" : !r ? "—" : /^\d/.test(r) ? `каб. ${esc(r)}` : esc(r));
 const bookUrl = (slug, page) => `books/${encodeURIComponent(slug)}.pdf${page ? `#page=${page}` : ""}`;
+// Порядок: спершу група важкості (червоні → зелені), усередині — як у списку
 const rank = (t) => { const i = ORDER.indexOf(t); return i < 0 ? 999 : i; };
 const sortSubj = (list) => [...list].sort((a, b) => rank(a.tag) - rank(b.tag));
 
@@ -163,7 +178,7 @@ function card(e, { showSubj = true } = {}) {
   const s = subj(e.tag);
   if (e.alert) {
     return `<article class="card alert-card" style="--c:${s.color}">
-    <div class="head">${showSubj ? `<a class="subj" href="#/s/${encodeURIComponent(e.tag)}">${esc(s.name)}</a>` : "<span></span>"}
+    <div class="head">${showSubj ? `<a class="subj" href="#/s/${encodeURIComponent(e.tag)}">${esc(s.name)}<i class="gdot" style="--g:${groupColor(e.tag)}"></i></a>` : "<span></span>"}
       <span class="dates">${e.n} урок ${short(e.given)}${e.due ? ` → здати ${short(e.due)}` : ""}</span></div>
     <p class="hw"><b>🚨 Була тривога!</b> ДЗ не задавали · ${e.pct}% уроку під тривогою</p>
   </article>`;
@@ -186,7 +201,7 @@ function card(e, { showSubj = true } = {}) {
   const del = ADMIN_TOKEN ? `<span class="adm-btns"><button type="button" class="del" data-edit="${esc(e.id)}" aria-label="Редагувати ДЗ">✏️</button><button type="button" class="del" data-del="${esc(e.id)}" aria-label="Видалити ДЗ">🗑</button></span>` : "";
   const check = `<button type="button" class="check" data-done="${esc(e.id)}" role="checkbox" aria-checked="${done}" aria-label="${done ? "Повернути в невиконане" : "Позначити виконаним"}"></button>`;
   return `<article class="card${done ? " is-done" : ""}${isMine(e) ? "" : " not-mine"}" style="--c:${s.color}">
-    <div class="head">${check}${showSubj ? `<a class="subj" href="#/s/${encodeURIComponent(e.tag)}">${esc(s.name)}</a>` : "<span></span>"}
+    <div class="head">${check}${showSubj ? `<a class="subj" href="#/s/${encodeURIComponent(e.tag)}">${esc(s.name)}<i class="gdot" style="--g:${groupColor(e.tag)}"></i></a>` : "<span></span>"}
       ${g ? `<span class="grp">${esc(g)}</span>` : ""}<span class="dates">${dates}</span>${del}</div>
     ${ADMIN_TOKEN && EDIT_ID === String(e.id) ? `<form id="edit-form" class="edit-form" data-id="${esc(e.id)}">
       <label>Текст ДЗ<textarea name="hw" rows="4" required>${esc(e.homework)}</textarea></label>
@@ -211,7 +226,7 @@ function overlapMs(a, b) {
   return t;
 }
 function lessonSpan(day, n) {
-  const b = bell(n);
+  const b = bell(n, day);
   if (!b) return null;
   const d0 = parse(day).getTime();
   return [d0 + toMin(b[0]) * MIN, d0 + toMin(b[1]) * MIN];
@@ -254,7 +269,9 @@ function alertEntries() {
     const seen = new Set();
     for (const [n, tag] of plan(d)) {
       if (seen.has(tag) || !endCovered(d, n)) continue;
-      if (RAW.some((e) => e.tag === tag && e.given === d)) continue;
+      // справжнє ДЗ (моєї групи), задане від дня тривоги до наступного уроку, замінює плашку
+      const until = nextLessonOf(tag, d) || "9999-12-31";
+      if (RAW.some((e) => e.tag === tag && e.given >= d && e.given < until && isMine(e))) continue;
       seen.add(tag);
       out.push({ id: `alert-${d}-${n}`, alert: true, tag, n, given: d, due: nextLessonOf(tag, d), pct: alertPct(d, n), homework: "" });
     }
@@ -308,9 +325,9 @@ function nextSchoolDay(from) {
   }
   return null;
 }
-function lessonLine(l, withTime = true) {
+function lessonLine(l, withTime = true, day = today()) {
   const [n, tag, r] = l;
-  const b = bell(n);
+  const b = bell(n, day);
   return `<span class="who">${room(r, tag)} · вчитель: ${esc(teacher(tag))}${withTime && b ? ` · ${b[0]}–${b[1]}` : ""}</span>`;
 }
 function nowState() {
@@ -323,7 +340,7 @@ function nowState() {
     if (sec < s0) return { kind: i === 0 ? "before" : "break", l: ls[i], left: s0 - sec };
   }
   const nd = nextSchoolDay(t);
-  const first = nd && plan(nd).find((l) => bell(l[0]));
+  const first = nd && plan(nd).find((l) => bell(l[0], nd));
   return { kind: ls.length ? "after" : "free", day: nd, l: first };
 }
 const mmss = (s) => (s >= 3600 ? `${Math.floor(s / 3600)}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}` : `${pad(Math.floor(s / 60))}:${pad(s % 60)}`);
@@ -345,7 +362,7 @@ function nowCard() {
   } else {
     const head = st.kind === "after" ? "Уроки на сьогодні закінчились" : "Сьогодні уроків немає";
     html = `<div class="now-k">${head}</div>` + (st.l
-      ? `<div class="next">Наступний урок: <b>${relDay(st.day)}, ${longDay(st.day)}</b> о ${bell(st.l[0])[0]} — <b>${esc(subj(st.l[1]).name)}</b></div>${lessonLine(st.l, false)}`
+      ? `<div class="next">Наступний урок: <b>${relDay(st.day)}, ${longDay(st.day)}</b> о ${bell(st.l[0], st.day)[0]} — <b>${esc(subj(st.l[1]).name)}</b></div>${lessonLine(st.l, false, st.day)}`
       : "");
   }
   return `<section class="now" id="now">${html}</section>`;
@@ -362,7 +379,7 @@ function home() {
   const due = byDue(mine);
   const t = today();
   const days = Object.keys(due).filter((d) => d > t).sort();
-  let html = (ALERTS.now ? `<a class="alert-line" href="#/alerts">🚨 Повітряна тривога в Києві</a>` : "") + nowCard();
+  let html = (ALERTS.now ? `<a class="alert-line" href="#/alerts">🚨 Повітряна тривога в Києві</a>` : "") + nowCard() + bdayWidget();
   if (!days.length) {
     html += `<h1>Нічого не задано</h1><p class="sub">Найближчими днями здавати нічого.</p>`;
   } else {
@@ -383,7 +400,7 @@ function home() {
   if (nodue.length) html += `<h2>Без дати здачі</h2>` + nodue.map((e) => card(e)).join("");
   if (!ALL.length) html += `<div class="empty">Тут зʼявиться ДЗ, щойно бот його опублікує.</div>`;
   const doneN = ALL.filter((e) => isMine(e) && isDone(e) && e.due && e.due > today()).length;
-  if (doneN) html += `<p class="legend"><a href="#/done">✔ Виконано: ${doneN}</a></p>`;
+  if (doneN) html += `<a class="done-btn" href="#/done">✔ Виконано: ${doneN} — переглянути</a>`;
   return html;
 }
 
@@ -395,12 +412,12 @@ function dayTable(s, legend = true) {
     return `<div class="empty small">${why}</div>`;
   }
   return `<ol class="lessons">${ls.map(([n, tag, r]) => {
-    const b = bell(n);
+    const b = bell(n, s);
     const p = b ? alertPct(s, n) : 0;
     return `<li class="${p ? "al" : ""}" style="--c:${subj(tag).color};--g:${groupColor(tag)};--ap:${p}%"><span class="ln">${n}</span>
-      <a href="#/s/${encodeURIComponent(tag)}">${esc(subj(tag).name)}<i class="gdot"></i></a>
+      <span class="nm"><a href="#/s/${encodeURIComponent(tag)}">${esc(subj(tag).name)}<i class="gdot"></i></a><small class="tch">${esc(shortName(teacher(tag)))}</small></span>
       <span class="lr">${p ? `<span class="apct" title="${p}% уроку під тривогою">🚨 ${p}%</span> · ` : ""}${b ? `${b[0]}–${b[1]} · ` : ""}${room(r, tag)}</span></li>`;
-  }).join("")}</ol>${legend ? groupLegend() : ""}`;
+  }).join("")}</ol>${isShort(s) ? `<p class="short-note">⏱ Скорочені уроки</p>` : ""}${legend ? groupLegend() : ""}`;
 }
 
 const groupLegend = () =>
@@ -410,7 +427,7 @@ const groupLegend = () =>
 const nowSec = () => { const d = new Date(); return d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds(); };
 // Чи закінчились сьогоднішні уроки (без дзвінків — після 15:00)
 function dayOver(s) {
-  const ls = plan(s), last = ls[ls.length - 1], b = last && bell(last[0]);
+  const ls = plan(s), last = ls[ls.length - 1], b = last && bell(last[0], s);
   return nowSec() >= (b ? toMin(b[1]) : 15 * 60) * 60;
 }
 // День, що показується зверху: сьогодні, а якщо уроки скінчились — наступний навчальний
@@ -424,7 +441,7 @@ function focusCard(s) {
   const sec = nowSec(), ls = plan(s);
   let rows = "", nextFound = false;
   ls.forEach(([n, tag, r], i) => {
-    const b = bell(n);
+    const b = bell(n, s);
     let cls = "", right = `${b ? `${b[0]}–${b[1]} · ` : ""}${room(r, tag)}`;
     if (live && b) {
       const st = toMin(b[0]) * 60, en = toMin(b[1]) * 60;
@@ -438,12 +455,12 @@ function focusCard(s) {
       }
     }
     rows += `<li class="${cls}" style="--c:${subj(tag).color};--g:${groupColor(tag)}"><span class="ln">${n}</span>
-      <a href="#/s/${encodeURIComponent(tag)}">${esc(subj(tag).name)}<i class="gdot"></i></a>
+      <span class="nm"><a href="#/s/${encodeURIComponent(tag)}">${esc(subj(tag).name)}<i class="gdot"></i></a><small class="tch">${esc(shortName(teacher(tag)))}</small></span>
       <span class="lr">${right}</span></li>`;
   });
   const head = s === today() ? "Сьогодні" : cap(relDay(s));
   return `<section class="focus" id="focus"><div class="day-h"><b>${head}</b><span>${WD.includes(relDay(s)) ? short(s) : `${WD[parse(s).getDay()]}, ${short(s)}`}</span></div>
-    <ol class="lessons">${rows}</ol></section>`;
+    <ol class="lessons">${rows}</ol>${isShort(s) ? `<p class="short-note">⏱ Скорочені уроки</p>` : ""}</section>`;
 }
 
 let weekOff = null;
@@ -472,15 +489,16 @@ function weekPage() {
 
 // Перше відкриття сайту: питаємо групу й мову
 function showSetup() {
-  const draft = { group: null, lang: null, ukr: null };
+  const draft = { group: null, lang: null, ukr: null, tech: null };
   const box = document.createElement("div");
   box.className = "setup";
   box.innerHTML = `<div class="setup-box" role="dialog" aria-modal="true" aria-labelledby="setup-h">
     <h2 id="setup-h">Привіт! 👋</h2>
-    <p>Обери групу, мову й учительку української — сайт покаже твій розклад. Змінити можна у вкладці «Розклад».</p>
+    <p>Обери групу, мову, учительку української й технології — сайт покаже твій розклад. Змінити можна у вкладці «Розклад».</p>
     <div class="q">Група</div><div class="slot-g"></div>
     <div class="q">Друга іноземна</div><div class="slot-l"></div>
     <div class="q">Українська мова з…</div><div class="slot-u"></div>
+    <div class="q">Технології</div><div class="slot-t"></div>
     <button type="button" class="go" disabled>Готово</button></div>`;
   const draw = () => {
     const sw = document.createElement("div");
@@ -488,7 +506,8 @@ function showSetup() {
     box.querySelector(".slot-g").replaceChildren(sw.children[0]);
     box.querySelector(".slot-l").replaceChildren(sw.children[0]);
     box.querySelector(".slot-u").replaceChildren(sw.children[0]);
-    box.querySelector(".go").disabled = !(draft.group && draft.lang && draft.ukr);
+    box.querySelector(".slot-t").replaceChildren(sw.children[0]);
+    box.querySelector(".go").disabled = !(draft.group && draft.lang && draft.ukr && draft.tech);
   };
   box.addEventListener("click", (ev) => {
     const g = ev.target.closest("[data-pg]"), l = ev.target.closest("[data-pl]");
@@ -496,8 +515,10 @@ function showSetup() {
     if (l) { draft.lang = l.dataset.pl; draw(); }
     const u = ev.target.closest("[data-pu]");
     if (u) { draft.ukr = Number(u.dataset.pu); draw(); }
-    if (ev.target.closest(".go") && draft.group && draft.lang && draft.ukr) {
-      savePref({ group: draft.group, lang: draft.lang, ukr: draft.ukr });
+    const tt = ev.target.closest("[data-pt]");
+    if (tt) { draft.tech = Number(tt.dataset.pt); draw(); }
+    if (ev.target.closest(".go") && draft.group && draft.lang && draft.ukr && draft.tech) {
+      savePref({ group: draft.group, lang: draft.lang, ukr: draft.ukr, tech: draft.tech });
       box.remove();
       document.body.classList.remove("no-scroll");
       render();
@@ -509,6 +530,14 @@ function showSetup() {
   box.querySelector("button").focus();
 }
 
+// Середня важкість ДЗ дня: червоний 4, помаранчевий 3, жовтий 2, зелений 1 (алгебра й англійська — як помаранчеві)
+function avgColor(items) {
+  const w = (t) => (t === "Алгебра" || t === "Англ" ? 3 : 4 - Math.max(0, GROUPS.findIndex(([, , tags]) => tags.includes(t))));
+  const list = items.filter((e) => !e.alert);
+  if (!list.length) return "var(--danger)";
+  const avg = list.reduce((s, e) => s + w(e.tag), 0) / list.length;
+  return GROUPS[4 - Math.min(4, Math.max(1, Math.round(avg)))][1];
+}
 let calMonth = null, calSel = null;
 function cal() {
   const due = byDue();
@@ -526,7 +555,7 @@ function cal() {
     const d = new Date(y, m, n), s = iso(d), wk = d.getDay() === 0 || d.getDay() === 6;
     const items = due[s] || [];
     const cls = ["d", wk && "wk", !wk && SCHOOL.holidays.includes(s) && "hol", s === t && "today", s === calSel && "sel"].filter(Boolean).join(" ");
-    const dots = sortSubj(items).map((e) => `<i class="dot" style="--c:${subj(e.tag).color}"></i>`).join("");
+    const dots = items.length ? `<i class="dot" style="--c:${avgColor(items)}"></i>` : "";
     const label = `${n} ${MON[m]}${items.length ? `, ${items.length} ${plural(items.length)}` : ""}`;
     cells += `<button class="${cls}" data-day="${s}" aria-label="${label}">${n}<span class="dots">${dots}</span></button>`;
   }
@@ -575,7 +604,7 @@ function subject(tag) {
   const files = FILES.filter((f) => f.tag === tag);
   const up = upcomingLessons(tag);
   const upHtml = up.length ? `<ul class="up">${up.map(([d, [n, , r]]) => {
-    const b = bell(n);
+    const b = bell(n, d);
     return `<li><b>${WD_TINY[parse(d).getDay()]} ${short(d)}</b> · ${n} урок${b ? ` (${b[0]})` : ""} · ${room(r, tag)}</li>`;
   }).join("")}</ul>` : `<p class="muted">У розкладі цього предмета немає.</p>`;
   return `<a class="back" href="#/s">‹ Предмети</a>
@@ -644,11 +673,13 @@ function adminPage() {
   if (!ADMIN_TOKEN) return lockForm("lock", "Адмінпанель", "Тільки для адмінів. Введи пароль.");
   if (!ADM.data) { loadAdmin(); return `<h1>Адмінпанель</h1><p class="muted pad">Завантаження…</p>`; }
   if (ADM.data.error) return `<h1>Адмінпанель</h1><div class="empty">${esc(ADM.data.error)}</div>`;
-  const tabs = [["visitors", "Відвідувачі й блок"], ["deleted", `Видалені ДЗ${ADM.data.deleted.length ? ` · ${ADM.data.deleted.length}` : ""}`], ["site", "Сайт"]];
+  const tabs = [["add", "＋ Додати ДЗ"], ["visitors", "Відвідувачі й блок"], ["deleted", `Видалені ДЗ${ADM.data.deleted.length ? ` · ${ADM.data.deleted.length}` : ""}`], ["site", "Сайт"]];
   const sub = `<div class="subtabs" role="tablist">${tabs.map(([k, t]) => `<button type="button" role="tab" data-atab="${k}" aria-selected="${ADM.tab === k}">${t}</button>`).join("")}</div>`;
   let body = "";
   const D = ADM.data;
-  if (ADM.tab === "visitors") {
+  if (ADM.tab === "add") {
+    body = addForm();
+  } else if (ADM.tab === "visitors") {
     const bl = new Set(D.blocked.map((b) => b.ip));
     body = `<h2>Заблоковані</h2>${D.blocked.length ? `<ul class="iplist">${D.blocked.map((b) => `<li><div><b>${esc(b.ip)}</b><span>${esc(b.note || "")} · з ${fmtTime(b.when)}</span></div>
         <button type="button" data-unblock="${esc(b.ip)}">Розблокувати</button></li>`).join("")}</ul>` : `<p class="muted">Нікого не заблоковано.</p>`}
@@ -665,12 +696,97 @@ function adminPage() {
         <button type="button" class="restore" data-restore="${esc(e.id)}">↩ Повернути на сайт</button></article>`).join("")
       : `<div class="empty">Кошик порожній.</div>`;
   } else {
-    body = `<p>Перезапуск займає ~5–10 секунд: сайт сам перезавантажить сторінку, коли знову запрацює.</p>
+    const soon = (SCHOOL.short_days || []).filter((d) => d >= today());
+    body = `<h2>Скорочені уроки</h2>
+      <form id="shortform" class="blockform"><input type="date" id="sf-day" value="${today()}" aria-label="День" required>
+        <button type="submit" data-on="1">⏱ Увімкнути</button><button type="submit" data-on="0">Вимкнути</button></form>
+      <p class="muted small-note">${soon.length ? "Скорочені дні: " + soon.map((d) => `${WD_TINY[parse(d).getDay()]} ${short(d)}`).join(", ") : "Скорочених днів не заплановано."}
+        З Telegram: /short, /short 12.11, /short off 12.11.</p>
+      <h2>Перезапуск</h2>
+      <p>Перезапуск займає ~5–10 секунд: сайт сам перезавантажить сторінку, коли знову запрацює.</p>
       <button type="button" class="btn-danger" data-restart>🔄 Перезапустити сайт</button>
       <p class="muted small-note">Те саме з Telegram: /restartsite. Ще є /stopsite, /startsite, /restartbot, /fullrestart.</p>`;
   }
   return `<h1>Адмінпанель</h1><div class="unlock">🔓 Адмін-режим увімкнено: на картках ДЗ є ✏️ і 🗑. Інструкції — у вкладці «Інфо».
       <button type="button" data-lockout>Вийти</button></div>${sub}<div class="admin-body">${body}</div>`;
+}
+
+// ---------- адмін: додати ДЗ з сайту ----------
+let ADD = { tag: "", grp: 0 };
+function addForm() {
+  const kind = (SCHOOL.split || {})[ADD.tag];
+  const opts = ORDER.filter((t) => t !== "Укр").map((t) => `<option value="${t}"${t === ADD.tag ? " selected" : ""}>${esc(subj(t).name)}</option>`).join("");
+  const grpOpts = !kind ? "" : (kind === "u" ? [[2, "Ганна"], [1, "Ольга"]] : kind === "t" ? [[1, "дівчата"], [2, "хлопці"]] : [[1, "1 група"], [2, "2 група"]])
+    .map(([v, t]) => `<button type="button" data-addgrp="${v}" aria-pressed="${ADD.grp === v}">${t}</button>`).join("");
+  const due = ADD.tag && (!kind || ADD.grp) ? suggestDue(ADD.tag, today(), ADD.grp) : "";
+  return `<form id="addform" class="edit-form add-form">
+    <label>Предмет<select name="tag" required><option value="">— вибери —</option>${opts}</select></label>
+    ${kind ? `<div><div class="q">${kind === "u" ? "Українська з ким" : kind === "t" ? "Технології" : "Група"}</div><div class="seg">${grpOpts}</div></div>` : ""}
+    <div class="row2"><label>Задано<input type="date" name="given" value="${today()}" required></label>
+      <label>Здати<input type="date" name="due" value="${due}"></label></div>
+    <label>Текст ДЗ<textarea name="hw" rows="4" required placeholder="№ 390, 391; § 12 читати"></textarea></label>
+    <label class="chk"><input type="checkbox" name="channel" checked> Також опублікувати в Telegram-канал</label>
+    <div class="edit-btns"><button type="submit">Додати</button></div>
+    <p class="muted small-note">Дата «здати» підставляється сама — наступний урок за розкладом (для обраної групи). Можна змінити.</p></form>`;
+}
+// Наступний урок предмета для заданої групи/варіанта (як у боті)
+function suggestDue(tag, from, grp) {
+  const kind = (SCHOOL.split || {})[tag];
+  const saved = PREF;
+  PREF = { ...pref(), ...(kind === "g" ? { group: grp } : kind === "u" ? { ukr: grp } : kind === "t" ? { tech: grp } : {}), lang: tag === "Ісп" ? "es" : tag === "Нім" ? "de" : pref().lang };
+  const d = nextLessonOf(tag, from);
+  PREF = saved;
+  return d || "";
+}
+
+let ADD_TEXT = "";
+const keepAddText = () => { const t = document.querySelector("#addform textarea"); if (t) ADD_TEXT = t.value; };
+const restoreAddText = () => { const t = document.querySelector("#addform textarea"); if (t) t.value = ADD_TEXT; };
+
+// ---------- клас: розсадка й дні народження ----------
+let CLASS = { seats: [], birthdays: [], columns: 3 };
+function seatsPage() {
+  const cols = CLASS.columns || 3, pairs = CLASS.seats || [];
+  if (!pairs.length) return `<h1>Розсадка</h1><div class="empty">Розсадку ще не додано.</div>`;
+  const rows = Math.ceil(pairs.length / cols);
+  let grid = "";
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const p = pairs[r * cols + c];
+      grid += p ? `<div class="desk"><span>${esc(p[0])}</span><span>${esc(p[1])}</span></div>` : `<div class="desk empty-desk"></div>`;
+    }
+  }
+  const table = pairs.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join("");
+  return `<h1>Розсадка</h1><p class="sub">${cols} стовпчики × ${rows} рядів, парти по двоє.</p>
+    <div class="board">Дошка</div>
+    <div class="seats" style="--cols:${cols}">${grid}</div>
+    <h2>Хто з ким сидить</h2><table class="pairs"><thead><tr><th>Учень</th><th>Сидить з</th></tr></thead><tbody>${table}</tbody></table>`;
+}
+const MON_GEN = ["січня", "лютого", "березня", "квітня", "травня", "червня", "липня", "серпня", "вересня", "жовтня", "листопада", "грудня"];
+// Найближча дата ДН (цього або наступного року) і скільки днів до неї
+function bdayNext(md) {
+  const [m, d] = md.split("-").map(Number), t = parse(today());
+  let x = new Date(t.getFullYear(), m - 1, d);
+  if (x < t) x = new Date(t.getFullYear() + 1, m - 1, d);
+  return { date: x, days: Math.round((x - t) / 86400000) };
+}
+const bdayWhen = (n) => (n === 0 ? "сьогодні" : n === 1 ? "завтра" : n === 2 ? "післязавтра" : `через ${n} дн.`);
+function bdaysPage() {
+  const list = (CLASS.birthdays || []).map(([md, who]) => ({ md, who, ...bdayNext(md) })).sort((a, b) => a.days - b.days);
+  if (!list.length) return `<h1>Дні народження</h1><div class="empty">Ще не додано.</div>`;
+  let html = "", month = -1;
+  for (const b of list) {
+    if (b.date.getMonth() !== month) { month = b.date.getMonth(); html += `<h2>${cap(MON_N[month])}</h2>`; }
+    html += `<div class="bday${b.days <= 2 ? " soon" : ""}"><b>${b.date.getDate()} ${MON_GEN[b.date.getMonth()]}</b><span>${esc(b.who)}</span>
+      <em>${b.days <= 30 ? bdayWhen(b.days) : ""}</em></div>`;
+  }
+  return `<h1>Дні народження</h1><p class="sub">Від найближчого.</p>${html}`;
+}
+// Віджет на головній: ДН сьогодні / завтра / післязавтра
+function bdayWidget() {
+  const soon = (CLASS.birthdays || []).map(([md, who]) => ({ who, ...bdayNext(md) })).filter((b) => b.days <= 2).sort((a, b) => a.days - b.days);
+  if (!soon.length) return "";
+  return `<a class="bday-w" href="#/bdays">${soon.map((b) => `🎂 <b>${cap(bdayWhen(b.days))}</b> ДН у ${esc(b.who)}`).join("<br>")}</a>`;
 }
 
 // ---------- «Секрет» (окремий пароль) ----------
@@ -694,19 +810,21 @@ function infoPage() {
       <b>«Завдання»</b> з вирізкою з підручника.</p>
 
     <h2>Перше відкриття</h2>
-    <p>Сайт питає <b>групу</b> (1 або 2), <b>другу іноземну</b> (німецька чи іспанська) і <b>з ким українська</b>.
+    <p>Сайт питає <b>групу</b> (1 або 2), <b>другу іноземну</b> (німецька чи іспанська), <b>з ким українська</b> (Ганна чи Ольга)
+      і <b>технології</b> (дівчата — Кисельова, хлопці — Резніченко).
       Після цього весь сайт показує саме твій розклад і твоє ДЗ. Змінити вибір — перемикачами вгорі вкладки «Розклад».</p>
 
     <h2>Вкладки</h2>
     <ul>
       <li><b>Головна</b> — що здавати найближчим часом. Згори — картка «Зараз»: який урок іде і скільки до кінця, або перерва і що далі.</li>
       <li><b>Календар</b> — натисни на будь-який день: розклад цього дня й усе ДЗ, яке треба здати. Крапки на днях — є ДЗ.</li>
-      <li><b>Розклад</b> — тиждень з кабінетами, А/Б тижні, перемикачі групи й мови. Зверху — сьогоднішній день із живою підсвіткою уроку й перерви
+      <li><b>Розклад</b> — тиждень з кабінетами й учителями, А/Б тижні, перемикачі. У скорочені дні — позначка «⏱ Скорочені уроки». Зверху — сьогоднішній день із живою підсвіткою уроку й перерви
         (після уроків — завтрашній).</li>
       <li><b>⋯ → Предмети</b> — кожен предмет окремо: найближчі уроки, підручник, файли, усе ДЗ.</li>
       <li><b>⋯ → Файли</b> — підручники (PDF) і файли від учителів.</li>
       <li><b>⋯ → Виконане</b> — ДЗ, які ти позначив галочкою.</li>
       <li><b>⋯ → Тривоги</b> — тривоги в м. Київ: коли були, скільки тривали, які уроки зачепили.</li>
+      <li><b>⋯ → Додаткове</b>: <b>Розсадка</b> (хто з ким сидить), <b>Дні народження</b> (на головній — нагадування за 2 дні).</li>
     </ul>
 
     <h2>Галочки</h2>
@@ -744,6 +862,9 @@ function infoPage() {
       <li><b>🗑</b> — прибрати ДЗ із сайту (у каналі пост лишається). Усе видалене — в адмінпанелі, «Видалені ДЗ», звідки його можна повернути.</li>
       <li><b>Відвідувачі й блок</b> — останні IP, хто й коли заходив. «Заблокувати» — ця IP бачить тільки «Доступ заблоковано».
         Свою IP заблокувати не можна. Увага: у мобільного інтернету IP часто спільна на багатьох людей і змінюється — блокуй обережно.</li>
+      <li><b>＋ Додати ДЗ</b> — ДЗ прямо з сайту: предмет, група, дати (здати — підставляється сама), текст; галочка «також у канал».</li>
+      <li><b>Сайт → Скорочені уроки</b> — вибери день і «Увімкнути»: таймер, розклад і тривоги рахуються за скороченими дзвінками.
+        З Telegram: <code>/short</code>, <code>/short 12.11</code>, <code>/short off 12.11</code>.</li>
       <li><b>Сайт → Перезапустити</b> — якщо сайт поводиться дивно. Займає ~10 с.</li>
     </ul>
     <h3>Бот (Telegram)</h3>
@@ -753,7 +874,8 @@ function infoPage() {
       <li>Для предметів із групами бот спитає «1 група / 2 група» (для української — «Ганна / —»).</li>
       <li>Якщо з предмета за цей день ДЗ вже є, бот попередить. Адміну повтор опублікувати не можна (власнику — можна).
         Якщо бот переплутав предмет — відповідай на чернетку, який це урок.</li>
-      <li>Команди власника: <code>/adminadd username</code>, <code>/adminremove username</code>, <code>/admins</code>,
+      <li>Для технологій бот питає «дівчата / хлопці», для української — «Ганна / Ольга».</li>
+      <li>Команди власника: <code>/short</code>, <code>/adminadd username</code>, <code>/adminremove username</code>, <code>/admins</code>,
         <code>/restartsite</code>, <code>/stopsite</code>, <code>/startsite</code>, <code>/restartbot</code>, <code>/fullrestart</code>, <code>/digest</code>.</li>
       <li><b>Зведення</b>: о 17:00 бот надсилає власнику чернетку «ДЗ на завтра». Після «✅» вона йде в канал о 18:00
         (або одразу, якщо вже пізніше). Без підтвердження — не йде.</li>
@@ -763,6 +885,9 @@ function infoPage() {
       <li>Папка: <code>Робочий стіл\\homework-bot</code>. Логи: <code>data\\bot.log</code>, <code>data\\site.log</code>.</li>
       <li>Дзвінки й учителі — <code>data\\school.json</code>, розклад — <code>schedule.py</code>.</li>
       <li>Сайт назовні — через Tailscale Funnel; якщо адреса не відкривається, на ноутбуці: <code>tailscale funnel status</code>.</li>
+      <li><b>Оновлення коду — дистанційно</b>: з Mac (Claude, скіл «hw-deploy» або <code>python3 tools/deploy.py</code>) після підтвердження власника.
+        Ноутбук перевіряє ключ і код, робить резервну копію, оновлюється й сам перезапускає бота й сайт. Відкат — <code>tools/deploy.py --rollback</code>.</li>
+      <li>Розсадка й дні народження — <code>data\class.json</code>.</li>
     </ul>
   </section>`;
   return `<h1>Інфо</h1><p class="sub">Як усе влаштовано.</p>${user}${adm}`;
@@ -770,6 +895,11 @@ function infoPage() {
 
 // ---------- роутинг ----------
 const app = document.getElementById("app");
+app.addEventListener("change", (ev) => {
+  if (ev.target.name === "tag" && ev.target.closest("#addform")) {
+    keepAddText(); ADD = { tag: ev.target.value, grp: 0 }; render(); restoreAddText();
+  }
+});
 let timer = null;
 function render() {
   const h = decodeURIComponent(location.hash.slice(1) || "/");
@@ -782,12 +912,14 @@ function render() {
   else if (h === "/secret") { tab = "secret"; html = secretPage(); }
   else if (h === "/admin") { tab = "admin"; html = adminPage(); }
   else if (h === "/info") { tab = "info"; html = infoPage(); }
+  else if (h === "/seats") { tab = "seats"; html = seatsPage(); }
+  else if (h === "/bdays") { tab = "bdays"; html = bdaysPage(); }
   else if (h === "/alerts") { tab = "alerts"; html = alertsPage(); }
   else if (h === "/done") { tab = "done"; html = donePage(); }
   else html = home();
   app.innerHTML = html;
   document.querySelectorAll(".tabs a, .drawer a").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
-  document.getElementById("more").classList.toggle("on", ["subj", "files", "secret", "alerts", "done", "admin", "info"].includes(tab));
+  document.getElementById("more").classList.toggle("on", ["subj", "files", "secret", "alerts", "done", "admin", "info", "seats", "bdays"].includes(tab));
   setDrawer(false);
   document.getElementById("admin-badge").hidden = !ADMIN_TOKEN;
   clearInterval(timer);
@@ -813,6 +945,8 @@ app.addEventListener("click", (ev) => {
   const day = ev.target.closest("[data-day]");
   if (day) { calSel = day.dataset.day; render(); return; }
   if (ev.target.closest("[data-lockout]")) { adminApi("logout").catch(() => {}); setToken(null); render(); return; }
+  const ag = ev.target.closest("[data-addgrp]");
+  if (ag) { keepAddText(); ADD.grp = Number(ag.dataset.addgrp); render(); restoreAddText(); return; }
   const at = ev.target.closest("[data-atab]");
   if (at) { ADM.tab = at.dataset.atab; render(); return; }
   const bl = ev.target.closest("[data-block]"), ub = ev.target.closest("[data-unblock]"), rs = ev.target.closest("[data-restore]");
@@ -856,9 +990,9 @@ app.addEventListener("click", (ev) => {
     } else render();
     return;
   }
-  const pg = ev.target.closest("[data-pg]"), pl = ev.target.closest("[data-pl]"), pu = ev.target.closest("[data-pu]");
-  if (pg || pl || pu) {
-    savePref({ ...pref(), ...(pg ? { group: Number(pg.dataset.pg) } : pl ? { lang: pl.dataset.pl } : { ukr: Number(pu.dataset.pu) }) });
+  const pg = ev.target.closest("[data-pg]"), pl = ev.target.closest("[data-pl]"), pu = ev.target.closest("[data-pu]"), pt = ev.target.closest("[data-pt]");
+  if (pg || pl || pu || pt) {
+    savePref({ ...pref(), ...(pg ? { group: Number(pg.dataset.pg) } : pl ? { lang: pl.dataset.pl } : pu ? { ukr: Number(pu.dataset.pu) } : { tech: Number(pt.dataset.pt) }) });
     render(); return;
   }
   if (ev.target.closest("[data-top]")) { scrollTo({ top: 0, behavior: "smooth" }); return; }
@@ -884,6 +1018,35 @@ app.addEventListener("submit", async (ev) => {
       if (id === "lock") setToken(j.token); else secretHtml = j.html || "";
       render();
     } catch { err.textContent = "Немає звʼязку із сервером"; }
+    return;
+  }
+  if (id === "addform") {
+    ev.preventDefault();
+    const f = ev.target, kind = (SCHOOL.split || {})[f.elements.tag.value];
+    if (kind && !ADD.grp) { alert("Вибери групу"); return; }
+    const body = { tag: f.elements.tag.value, grp: ADD.grp || null, given: f.elements.given.value, due: f.elements.due.value,
+      homework: f.elements.hw.value, channel: f.elements.channel.checked };
+    const send = async (force) => {
+      const r = await fetch("api/admin/add", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, force, token: ADMIN_TOKEN }) });
+      return [r.status, await r.json().catch(() => ({}))];
+    };
+    try {
+      let [code, j] = await send(false);
+      if (code === 409 && j.dup && confirm(`${j.error}\n\nВсе одно додати?`)) [code, j] = await send(true);
+      if (code === 401) { setToken(null); render(); alert("Сесія адміна закінчилась."); return; }
+      if (!j.ok) { if (code !== 409) alert(j.error || "Помилка"); return; }
+      RAW.push(j.entry); applyPref(); ADD = { tag: "", grp: 0 }; render();
+      alert(j.channel ? "ДЗ додано на сайт і в канал ✅" : `ДЗ додано на сайт ✅${body.channel ? `\nКанал: ${j.channel_error}` : ""}`);
+    } catch { alert("Немає звʼязку із сервером"); }
+    return;
+  }
+  if (id === "shortform") {
+    ev.preventDefault();
+    const on = ev.submitter && ev.submitter.dataset.on === "1";
+    try {
+      const j = await adminApi("short", { day: document.getElementById("sf-day").value, on });
+      SCHOOL.short_days = j.short_days; render();
+    } catch (e) { alert(e.message); }
     return;
   }
   if (id === "blockform") {
@@ -946,8 +1109,9 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") { viewer.h
 const get = (u, fallback) => fetch(`${u}?t=${Date.now()}`, { cache: "no-store" })
   .then((r) => (r.ok ? r.json() : fallback)).catch(() => fallback);
 const okAlerts = (a) => a && Array.isArray(a.list);
-Promise.all([get("data/homework.json", []), get("data/school.json", null), get("data/files.json", []), get("data/alerts.json", null)])
-  .then(([hw, school, files, al]) => {
+Promise.all([get("data/homework.json", []), get("data/school.json", null), get("data/files.json", []), get("data/alerts.json", null), get("data/class.json", null)])
+  .then(([hw, school, files, al, cls]) => {
+    if (cls && Array.isArray(cls.seats)) CLASS = cls;
     RAW = Array.isArray(hw) ? hw : [];
     FILES = Array.isArray(files) ? files : [];
     if (school) SCHOOL = Object.assign(SCHOOL, school);

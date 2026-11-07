@@ -201,7 +201,7 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: v
 .lessons { list-style: none; margin: 0; padding: 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
 .lessons li { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line); border-left: 4px solid var(--c); }
 .lessons li:first-child { border-top: 0; }
-.lessons .gdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--g); margin-left: 4px; vertical-align: 0.55em; }
+.gdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--g); margin-left: 4px; vertical-align: 0.55em; }
 .legend.groups { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .legend.groups span { display: inline-flex; align-items: center; gap: 6px; }
 .lessons .ln { width: 18px; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -391,3 +391,42 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: v
 .gdz { text-align: center; padding: 32px 16px; background: var(--card); border: 1px dashed var(--line); border-radius: var(--r); }
 .gdz-ic { font-size: 44px; margin: 0 0 8px; }
 .adm-btns { display: inline-flex; gap: 4px; flex: 0 0 auto; }
+
+/* учителі, скорочені, кнопка «Виконано» */
+.lessons .nm { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.lessons .nm a { flex: none; }
+.lessons .tch { font-size: 12px; color: var(--muted); font-weight: 500; line-height: 1.3; }
+.focus .lessons li.past .tch { display: none; }
+.short-note { margin: 6px 2px 0; font-size: 13px; font-weight: 700; color: var(--danger); }
+.done-btn { display: block; text-align: center; margin: 16px 0 4px; padding: 12px; border-radius: var(--r);
+  border: 1px solid var(--line); background: var(--card); color: var(--text); font-weight: 650; text-decoration: none; box-shadow: var(--shadow); }
+.done-btn:hover { border-color: var(--accent); }
+.card .subj .gdot { vertical-align: 0.45em; }
+
+/* меню: «Додаткове» */
+.drawer-sec { margin: 14px 12px 4px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+  padding-top: 12px; border-top: 1px solid var(--line); }
+/* розсадка */
+.board { text-align: center; padding: 8px; margin: 8px auto 14px; width: 70%; border-radius: 8px; background: #2f4f3a; color: #e8f5e9; font-weight: 700; letter-spacing: .1em; }
+.seats { display: grid; grid-template-columns: repeat(var(--cols), 1fr); gap: 10px 12px; }
+.desk { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 6px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); min-height: 54px; }
+.desk span { display: flex; align-items: center; justify-content: center; text-align: center; font-size: 12px; font-weight: 600; line-height: 1.2;
+  background: var(--accent-soft); border-radius: 6px; padding: 4px 3px; overflow-wrap: anywhere; }
+.empty-desk { background: transparent; border-style: dashed; box-shadow: none; }
+.pairs { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.pairs th, .pairs td { text-align: left; padding: 9px 12px; border-top: 1px solid var(--line); font-size: 14px; }
+.pairs th { background: var(--bg); color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; border-top: 0; }
+/* дні народження */
+.bday { display: grid; grid-template-columns: 110px 1fr auto; gap: 10px; align-items: baseline; padding: 10px 14px; margin-bottom: 6px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+.bday em { font-style: normal; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.bday.soon { border-color: #f59f00; background: color-mix(in srgb, #f59f00 12%, var(--card)); }
+.bday.soon em { color: #e8590c; font-weight: 700; }
+.bday-w { display: block; margin: 0 0 14px; padding: 12px 14px; border-radius: var(--r); text-decoration: none; color: var(--text);
+  background: color-mix(in srgb, #f59f00 14%, var(--card)); border: 1px solid #f59f00; line-height: 1.6; }
+/* форма «Додати ДЗ» */
+.add-form select { border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 9px; padding: 8px 10px; font: inherit; font-size: 15px; }
+.add-form .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.add-form .q { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+.add-form .chk { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
+@media (max-width: 560px) { .desk { grid-template-columns: 1fr; } .desk span { min-height: 26px; } }
