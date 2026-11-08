@@ -168,6 +168,8 @@ function teacher(t) {
 }
 const shortName = (full) => { const [f, n, m] = String(full).split(" "); return n ? `${f} ${n[0]}.${m ? ` ${m[0]}.` : ""}` : full; };
 const room = (r, tag) => (tag === "ФізРа" ? "зал" : !r ? "—" : /^\d/.test(r) ? `каб. ${esc(r)}` : esc(r));
+// Підручники предмета: [{slug, offset, title}] (старий сервер віддавав один обʼєкт)
+const bookList = (t) => { const b = SCHOOL.books[t]; return !b ? [] : Array.isArray(b) ? b : [b]; };
 const bookUrl = (slug, page) => `books/${encodeURIComponent(slug)}.pdf${page ? `#page=${page}` : ""}`;
 // Порядок: спершу група важкості (червоні → зелені), усередині — як у списку
 const rank = (t) => { const i = ORDER.indexOf(t); return i < 0 ? 999 : i; };
@@ -577,7 +579,7 @@ function subjects() {
     const s = subj(t);
     const k = tagsOf(t).reduce((n, x) => n + (count[x] || 0), 0);
     if (t === "Укр" && !k) return "";
-    const book = SCHOOL.books[t] ? `<i class="tile-book" title="Є підручник">📖</i>` : "";
+    const book = bookList(t).length ? `<i class="tile-book" title="Є підручник">📖</i>` : "";
     return `<a class="tile${k ? "" : " none"}" style="--c:${s.color}" href="#/s/${encodeURIComponent(t)}">
       <b>${esc(s.name)}</b><span>${k ? `${k} ${plural(k)}` : "ДЗ поки немає"}${book}</span></a>`;
   };
@@ -600,7 +602,7 @@ function subject(tag) {
   const s = subj(tag);
   const extra = ALSO[tag] || [];
   const list = ALL.filter((e) => tagsOf(tag).includes(e.tag)).sort((a, b) => (b.given + (b.added || "")).localeCompare(a.given + (a.added || "")));
-  const book = SCHOOL.books[tag];
+  const bks = bookList(tag);
   const files = FILES.filter((f) => f.tag === tag);
   const up = upcomingLessons(tag);
   const upHtml = up.length ? `<ul class="up">${up.map(([d, [n, , r]]) => {
@@ -612,8 +614,8 @@ function subject(tag) {
     <p class="sub">Вчитель: ${esc(teacher(tag))}${extra.length ? ` · + ${extra.map((x) => esc(subj(x).name)).join(", ")}` : ""}</p>
     <div class="subj-info">
       <section><h3>Найближчі уроки</h3>${upHtml}</section>
-      <section><h3>Підручник</h3>${book
-        ? `<a class="btn-book" href="${bookUrl(book.slug)}" target="_blank" rel="noopener"><i class="ic">📖</i>Відкрити підручник</a>`
+      <section><h3>Підручник</h3>${bks.length
+        ? bks.map((b) => `<a class="btn-book" href="${bookUrl(b.slug)}" target="_blank" rel="noopener"><i class="ic">📖</i>${esc(b.title || "Відкрити підручник")}</a>`).join("")
         : `<p class="muted">Підручника поки немає.</p>`}
         ${files.length ? `<h3>Файли</h3>${fileList(files)}` : ""}</section>
     </div>
@@ -628,8 +630,8 @@ function fileList(files) {
 
 function filesPage() {
   const books = sortSubj(SUBJECTS.map(([t, n, c]) => ({ tag: t, n, c }))).map(({ tag, n, c }) => [tag, n, c])
-    .filter(([t]) => SCHOOL.books[t]).map(([t, n, c]) =>
-    `<li><a href="${bookUrl(SCHOOL.books[t].slug)}" target="_blank" rel="noopener" style="--c:${c}"><b><i class="ic">📖</i>${esc(n)}</b><span>PDF · відкрити</span></a></li>`).join("");
+    .flatMap(([t, n, c]) => bookList(t).map((b) =>
+    `<li><a href="${bookUrl(b.slug)}" target="_blank" rel="noopener" style="--c:${c}"><b><i class="ic">📖</i>${esc(n)}</b><span>${b.title ? `${esc(b.title)} · ` : ""}PDF · відкрити</span></a></li>`)).join("");
   const teach = [...FILES].sort((a, b) => b.added.localeCompare(a.added));
   return `<h1>Файли</h1><p class="sub">Підручники й файли від учителів.</p>
     <h2>Від учителів</h2>${teach.length ? fileList(teach) : `<div class="empty small">Поки нічого немає.</div>`}
@@ -785,16 +787,169 @@ function bdaysPage() {
 // Віджет на головній: ДН сьогодні / завтра / післязавтра
 function bdayWidget() {
   const soon = (CLASS.birthdays || []).map(([md, who]) => ({ who, ...bdayNext(md) })).filter((b) => b.days <= 2).sort((a, b) => a.days - b.days);
-  if (!soon.length) return "";
-  return `<a class="bday-w" href="#/bdays">${soon.map((b) => `🎂 <b>${cap(bdayWhen(b.days))}</b> ДН у ${esc(b.who)}`).join("<br>")}</a>`;
+  const lines = weekendBdays().concat(soon.map((b) => `🎂 <b>${cap(bdayWhen(b.days))}</b> ДН у ${esc(b.who)}`));
+  return lines.length ? `<a class="bday-w" href="#/bdays">${lines.join("<br>")}</a>` : "";
+}
+// ДН, що припали на вихідні (чи канікули) перед сьогоднішнім навчальним днем — показуємо до кінця 3-го уроку
+function weekendBdays() {
+  const t = today();
+  if (!plan(t).length) return [];
+  const b3 = bell(3, t);
+  if (nowSec() >= (b3 ? toMin(b3[1]) : 11 * 60 + 10) * 60) return [];
+  const out = [];
+  for (let i = 1; i <= 9; i++) {
+    const d = addDays(parse(t), -i), s = iso(d);
+    if (plan(s).length) break; // дійшли до попереднього навчального дня
+    const md = s.slice(5);
+    for (const [m, who] of CLASS.birthdays || []) {
+      if (m === md) out.push(`🎂 На ${d.getDay() === 0 || d.getDay() === 6 ? "вихідних" : "канікулах"} (${WD_TINY[d.getDay()]}, ${short(s)}) було ДН у ${esc(who)}`);
+    }
+  }
+  return out.reverse();
 }
 
-// ---------- «Секрет» (окремий пароль) ----------
-let secretHtml = null;
-function secretPage() {
-  if (secretHtml !== null) return `<h1>Секрет</h1>${secretHtml || `<div class="empty">Тут поки порожньо.</div>`}`;
-  return lockForm("lock2", "Секрет", "Введи пароль, щоб побачити вміст.");
+// ---------- «Секрет» → АвтоГДЗ ----------
+// Ключ АвтоГДЗ живе до закриття вкладки, ключ «Від ШІ» — на пристрої (пароль питається один раз)
+const store = (kind) => (kind === "ai" ? localStorage : sessionStorage);
+const keyGet = (kind, name) => { try { return store(kind).getItem(name); } catch { return null; } };
+const keySet = (kind, name, v) => { try { v ? store(kind).setItem(name, v) : store(kind).removeItem(name); } catch { /* приватний режим */ } };
+let GDZ_TOKEN = keyGet("gdz", "dz-gdz");
+let AI_TOKEN = keyGet("ai", "dz-ai");
+const GDZ_TAGS = ["Алгебра", "Геометрія", "УкрМова", "ІсторіяУкр"]; // для них сайт шукає готові відповіді
+let GDZ = { open: null, find: null, ai: null, aiLogin: false, poll: null };
+
+function gdzDue() {
+  const d = nextSchoolDay(today());
+  return { d, list: d ? sortSubj(RAW.filter((e) => e.due === d && isMine(e))) : [] };
 }
+function secretPage() {
+  if (!GDZ_TOKEN) return lockForm("lock2", "Секрет", "Введи пароль, щоб побачити вміст.");
+  const { d, list } = gdzDue();
+  const items = list.map((e) => {
+    const s = subj(e.tag), g = grpLabel(e);
+    return `<button type="button" class="gdz-item" data-gdz="${esc(e.id)}" style="--c:${s.color}">
+      <b>${esc(s.name)}<i class="gdot" style="--g:${groupColor(e.tag)}"></i>${g ? ` <span class="grp">${esc(g)}</span>` : ""}</b>
+      <span>${esc(e.homework)}</span>
+      <em>${GDZ_TAGS.includes(e.tag) ? "Шукати ГДЗ ›" : "Відкрити ›"}</em></button>`;
+  }).join("");
+  return `<h1 class="gdz-h">АвтоГДЗ</h1>
+    <p class="sub">ДЗ на ${d ? `${whenDay(d)}, ${short(d)}` : "найближчий день"}. Натисни на завдання.</p>
+    ${items || `<div class="empty">На ${d ? whenDay(d) : "завтра"} ДЗ ще не задали.</div>`}`;
+}
+
+function gdzModalHtml() {
+  const e = RAW.find((x) => String(x.id) === GDZ.open);
+  if (!e) return "";
+  const s = subj(e.tag), has = GDZ_TAGS.includes(e.tag);
+  const crops = (e.tasks || []).flatMap((t) => (t.images || []).map((p) =>
+    `<button class="crop" data-img="${esc(p)}" aria-label="Збільшити"><img src="${esc(p)}" loading="lazy" alt="${esc(t.label)}"></button>`)).join("");
+  let found = "";
+  const f = GDZ.find;
+  if (f === "loading") found = `<p class="gdz-wait"><i class="spin"></i>Шукаю на сайтах ГДЗ…</p>`;
+  else if (f && f.error) found = `<p class="err">${esc(f.error)}</p>`;
+  else if (f) {
+    const res = f.results || [];
+    found = res.length ? res.map((r) => `<div class="gdz-res"><div class="gdz-res-h"><b>${esc(r.ref)}</b>
+        <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.source)} · ${esc(r.label)} ↗</a></div>
+        ${r.images.map((p) => `<button class="crop" data-img="${esc(p)}" aria-label="Збільшити"><img src="${esc(p)}" loading="lazy" alt="ГДЗ ${esc(r.ref)}"></button>`).join("")}</div>`).join("")
+      : `<p class="muted">${f.refs && f.refs.length ? `Не знайшов ${esc(f.refs.join(", "))} на сайтах ГДЗ.` : "У ДЗ немає номерів вправ — нема що шукати."}
+          ${(f.links || []).map((l) => `<br><a href="${esc(l.url)}" target="_blank" rel="noopener">Відкрити ГДЗ на ${esc(l.source)} ↗</a>`).join("")}</p>`;
+    if (res.length && f.links) found += `<p class="muted small-note">Ще: ${f.links.map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.source)}</a>`).join(" · ")}</p>`;
+  }
+  let ai = "";
+  const a = GDZ.ai;
+  if (GDZ.aiLogin) {
+    ai = `<form class="lock ai-lock" id="lock3" autocomplete="off"><p class="sub">Пароль «Від ШІ» — потрібен лише раз на цьому пристрої.</p>
+      <input id="lock3-pw" type="password" inputmode="numeric" placeholder="Пароль" aria-label="Пароль «Від ШІ»" required>
+      <button type="submit">Увійти</button><p class="err" id="lock3-err" role="alert"></p></form>`;
+  } else if (a && (a.status === "queue" || a.status === "run" || a.status === "starting")) {
+    ai = `<p class="gdz-wait"><i class="spin"></i>${a.status === "queue" ? "ШІ в черзі…" : "ШІ розвʼязує… це до хвилини-двох."}</p>`;
+  } else if (a && a.status === "done") {
+    const r = a.result;
+    ai = `<div class="ai-res"><h3>Від ШІ</h3>${r.answers.map((t, i) =>
+      `<div class="ai-ans">${r.creative ? `<b>Варіант ${i + 1}</b>` : ""}<p>${esc(t)}</p></div>`).join("")}
+      ${r.note ? `<p class="muted small-note">${esc(r.note)}</p>` : ""}
+      <p class="muted small-note">ШІ може помилятись — перевір.</p></div>`;
+  } else if (a && a.status === "error") ai = `<p class="err">${esc(a.error)}</p>`;
+  const aiBtn = !GDZ.aiLogin && !(a && ["queue", "run", "starting", "done"].includes(a.status))
+    ? `<button type="button" class="btn-ai" data-ai>✨ Від ШІ${AI_TOKEN ? "" : " (доступ)"}</button>` : "";
+  return `<div class="modal-card" role="dialog" aria-modal="true" aria-label="АвтоГДЗ: ${esc(s.name)}">
+    <div class="modal-h" style="--c:${s.color}"><b>${esc(s.name)}</b><button type="button" class="close" data-gdz-close aria-label="Закрити">×</button></div>
+    <p class="hw">${linkify(e.homework)}</p>
+    ${crops ? `<div class="gdz-crops">${crops}</div>` : ""}
+    ${has ? (f ? "" : `<div class="gdz-solve"><button type="button" class="btn-solve" data-solve>Розвʼязати</button></div>`)
+      : `<p class="muted gdz-dev">Повне АвтоГДЗ до цього предмету у розробці.</p>`}
+    ${found}
+    <div class="gdz-ai">${aiBtn}${ai}</div>
+  </div>`;
+}
+const modal = document.createElement("div");
+modal.className = "modal"; modal.hidden = true;
+document.body.appendChild(modal);
+function renderModal() {
+  modal.hidden = !GDZ.open;
+  modal.innerHTML = GDZ.open ? gdzModalHtml() : "";
+  document.body.classList.toggle("no-scroll", !!GDZ.open);
+}
+function closeModal() {
+  clearInterval(GDZ.poll);
+  GDZ = { open: null, find: null, ai: null, aiLogin: false, poll: null };
+  renderModal();
+}
+async function gdzApi(action, body) {
+  const r = await fetch(`api/gdz/${action}`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...body, gtoken: GDZ_TOKEN, atoken: AI_TOKEN }) });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && j.relogin) { setGdz(null); closeModal(); render(); throw new Error("Доступ до АвтоГДЗ закінчився — введи пароль ще раз."); }
+  if (r.status === 401 && j.ai_login) { AI_TOKEN = null; keySet("ai", "dz-ai", null); GDZ.aiLogin = true; renderModal(); throw new Error(""); }
+  if (!j.ok) throw new Error(j.error || "Помилка");
+  return j;
+}
+function setGdz(t) { GDZ_TOKEN = t; keySet("gdz", "dz-gdz", t); }
+function aiPoll(start) {
+  const id = GDZ.open;
+  clearInterval(GDZ.poll);
+  const step = async (first) => {
+    try {
+      const j = await gdzApi("ai", { id, start: first && start });
+      if (GDZ.open !== id) return;
+      GDZ.ai = j; renderModal();
+      if (!["queue", "run"].includes(j.status)) clearInterval(GDZ.poll);
+    } catch (e) {
+      clearInterval(GDZ.poll);
+      if (e.message && GDZ.open === id) { GDZ.ai = { status: "error", error: e.message }; renderModal(); }
+    }
+  };
+  step(true);
+  GDZ.poll = setInterval(() => step(false), 3000);
+}
+modal.addEventListener("click", async (ev) => {
+  if (ev.target === modal || ev.target.closest("[data-gdz-close]")) { closeModal(); return; }
+  const img = ev.target.closest("[data-img]");
+  if (img) { openViewer(img.dataset.img); return; }
+  if (ev.target.closest("[data-solve]")) {
+    const id = GDZ.open;
+    GDZ.find = "loading"; renderModal();
+    try { const j = await gdzApi("find", { id }); if (GDZ.open === id) GDZ.find = j; }
+    catch (e) { if (GDZ.open === id) GDZ.find = { error: e.message }; }
+    renderModal(); return;
+  }
+  if (ev.target.closest("[data-ai]")) {
+    if (!AI_TOKEN) { GDZ.aiLogin = true; renderModal(); document.getElementById("lock3-pw")?.focus(); return; }
+    GDZ.ai = { status: "starting" }; renderModal(); aiPoll(true);
+  }
+});
+modal.addEventListener("submit", async (ev) => {
+  if (ev.target.id !== "lock3") return;
+  ev.preventDefault();
+  const err = document.getElementById("lock3-err");
+  err.textContent = "";
+  try {
+    const j = await gdzApi("ai-login", { password: document.getElementById("lock3-pw").value });
+    AI_TOKEN = j.token; keySet("ai", "dz-ai", j.token);
+    GDZ.aiLogin = false; GDZ.ai = { status: "starting" }; renderModal(); aiPoll(true);
+  } catch (e) { if (e.message) err.textContent = e.message; }
+});
 
 // ---------- «Інфо» ----------
 function infoPage() {
@@ -888,6 +1043,9 @@ function infoPage() {
       <li><b>Оновлення коду — дистанційно</b>: з Mac (Claude, скіл «hw-deploy» або <code>python3 tools/deploy.py</code>) після підтвердження власника.
         Ноутбук перевіряє ключ і код, робить резервну копію, оновлюється й сам перезапускає бота й сайт. Відкат — <code>tools/deploy.py --rollback</code>.</li>
       <li>Розсадка й дні народження — <code>data\class.json</code>.</li>
+      <li>АвтоГДЗ («Секрет»): пошук на gdzonline.net і shkola.in.ua (алгебра, геометрія, укрмова, історія), «Від ШІ» — Claude Sonnet
+        на ноутбуці, до 30 нових розвʼязків на день (готові відповіді — з кешу). Підручники й індекси книжок оновлюються
+        <code>tools/deploy.py --files</code>.</li>
     </ul>
   </section>`;
   return `<h1>Інфо</h1><p class="sub">Як усе влаштовано.</p>${user}${adm}`;
@@ -922,6 +1080,8 @@ function render() {
   document.getElementById("more").classList.toggle("on", ["subj", "files", "secret", "alerts", "done", "admin", "info", "seats", "bdays"].includes(tab));
   setDrawer(false);
   document.getElementById("admin-badge").hidden = !ADMIN_TOKEN;
+  document.getElementById("gdz-badge").hidden = !GDZ_TOKEN;
+  document.getElementById("secret-link").textContent = GDZ_TOKEN ? "АвтоГДЗ" : "Секрет";
   clearInterval(timer);
   if (tab === "week" && SCHOOL.bells.length) {
     const shown = focusDay();
@@ -1000,9 +1160,20 @@ app.addEventListener("click", (ev) => {
   if (wk) { weekOff += Number(wk.dataset.week); render(); return; }
   const mon = ev.target.closest("[data-mon]");
   if (mon) { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + Number(mon.dataset.mon), 1); render(); return; }
+  const gi = ev.target.closest("[data-gdz]");
+  if (gi) { GDZ = { open: gi.dataset.gdz, find: null, ai: null, aiLogin: false, poll: null }; renderModal(); aiPeek(); return; }
   const img = ev.target.closest("[data-img]");
   if (img) openViewer(img.dataset.img);
 });
+// Якщо ШІ вже розвʼязував це ДЗ (хтось інший) — одразу показати відповідь
+async function aiPeek() {
+  if (!AI_TOKEN) return;
+  const id = GDZ.open;
+  try {
+    const j = await gdzApi("ai", { id });
+    if (GDZ.open === id && j.status !== "none") { GDZ.ai = j; renderModal(); if (["queue", "run"].includes(j.status)) aiPoll(false); }
+  } catch { /* тихо */ }
+}
 
 app.addEventListener("submit", async (ev) => {
   const id = ev.target.id;
@@ -1015,7 +1186,7 @@ app.addEventListener("submit", async (ev) => {
         body: JSON.stringify({ password: document.getElementById(`${id}-pw`).value }) });
       const j = await r.json();
       if (!j.ok) { err.textContent = j.error || "Неправильний пароль"; return; }
-      if (id === "lock") setToken(j.token); else secretHtml = j.html || "";
+      if (id === "lock") setToken(j.token); else setGdz(j.token);
       render();
     } catch { err.textContent = "Немає звʼязку із сервером"; }
     return;
@@ -1104,7 +1275,12 @@ async function deleteHw(id) {
 const viewer = document.getElementById("viewer");
 function openViewer(src) { viewer.querySelector("img").src = src; viewer.hidden = false; }
 viewer.addEventListener("click", () => { viewer.hidden = true; });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { viewer.hidden = true; setDrawer(false); } });
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (!viewer.hidden) { viewer.hidden = true; return; }
+  if (GDZ.open) { closeModal(); return; }
+  setDrawer(false);
+});
 
 const get = (u, fallback) => fetch(`${u}?t=${Date.now()}`, { cache: "no-store" })
   .then((r) => (r.ok ? r.json() : fallback)).catch(() => fallback);
@@ -1120,6 +1296,7 @@ Promise.all([get("data/homework.json", []), get("data/school.json", null), get("
     render();
     if (!PREF) showSetup();
     if (ADMIN_TOKEN) adminApi("check").catch(() => {}); // прострочений ключ — тихо вийти з адмін-режиму
+    if (GDZ_TOKEN) gdzApi("check", {}).catch(() => {});
   });
 // Тривоги оновлюються кожні 30 с; сторінку перемальовуємо, лише коли щось змінилось
 setInterval(async () => {
@@ -1130,6 +1307,6 @@ setInterval(async () => {
   const tab = decodeURIComponent(location.hash.slice(1) || "/");
   if (was !== JSON.stringify([al.now, al.list]) || tab === "/alerts") {
     applyPref();
-    if (!document.querySelector(".setup") && !drawer.classList.contains("open")) render();
+    if (!document.querySelector(".setup") && !drawer.classList.contains("open") && !GDZ.open) render();
   }
 }, 30000);

@@ -217,6 +217,7 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: v
   display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border-radius: 12px;
   background: var(--accent); color: var(--on-accent); text-decoration: none; font-weight: 650;
 }
+.btn-book + .btn-book { margin-top: 8px; }
 .tile-book { font-style: normal; margin-left: 6px; }
 
 /* завдання з підручника */
@@ -430,3 +431,47 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: v
 .add-form .q { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
 .add-form .chk { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
 @media (max-width: 560px) { .desk { grid-template-columns: 1fr; } .desk span { min-height: 26px; } }
+
+/* АвтоГДЗ */
+.gdz-badge { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; color: var(--accent); font-weight: 800; font-size: 14px; text-decoration: none; vertical-align: 3px; letter-spacing: .02em; }
+.gdz-badge i { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); display: inline-block; }
+.gdz-badge[hidden] { display: none; }
+.gdz-h { color: var(--accent); }
+.gdz-item {
+  display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left; margin: 0 0 10px; padding: 12px 14px;
+  background: var(--card); color: var(--text); border: 1px solid var(--line); border-left: 4px solid var(--c);
+  border-radius: var(--r); box-shadow: var(--shadow); font: inherit; cursor: pointer;
+}
+.gdz-item b { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.gdz-item span { white-space: pre-line; overflow-wrap: anywhere; }
+.gdz-item em { font-style: normal; color: var(--accent); font-weight: 650; font-size: 14px; }
+.gdz-item:hover { border-color: var(--accent); border-left-color: var(--c); }
+.modal { position: fixed; inset: 0; z-index: 15; background: rgb(0 0 0 / .5); display: flex; align-items: flex-end; justify-content: center; }
+.modal[hidden] { display: none; }
+.modal-card {
+  background: var(--bg); width: 100%; max-width: 640px; max-height: 92vh; overflow-y: auto; overscroll-behavior: contain;
+  border-radius: 18px 18px 0 0; padding: 0 16px calc(20px + env(safe-area-inset-bottom));
+}
+@media (min-width: 700px) { .modal { align-items: center; } .modal-card { border-radius: 18px; } }
+.modal-h { position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; padding: 14px 0 10px; background: var(--bg); border-bottom: 3px solid var(--c); margin-bottom: 10px; z-index: 1; }
+.modal-h b { font-size: 19px; }
+.modal-h .close { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 24px; line-height: 1; cursor: pointer; }
+.modal .hw { white-space: pre-line; overflow-wrap: anywhere; }
+.gdz-crops .crop, .gdz-res .crop { display: block; width: 100%; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; margin: 0 0 8px; cursor: zoom-in; }
+.gdz-crops img, .gdz-res img { display: block; width: 100%; height: auto; }
+.gdz-solve { display: flex; justify-content: center; padding: 18px 0; }
+.btn-solve { min-width: 220px; height: 54px; border: 0; border-radius: 14px; background: var(--accent); color: var(--on-accent); font: inherit; font-size: 18px; font-weight: 750; cursor: pointer; box-shadow: var(--shadow); }
+.btn-solve:hover { filter: brightness(1.07); }
+.gdz-dev { text-align: center; padding: 10px 0 4px; }
+.gdz-res { margin: 14px 0; }
+.gdz-res-h { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; margin-bottom: 6px; font-size: 14px; }
+.gdz-wait { display: flex; align-items: center; gap: 10px; color: var(--muted); padding: 10px 0; }
+.spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; display: inline-block; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.4s; } }
+.gdz-ai { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 14px; }
+.btn-ai { width: 100%; height: 48px; border-radius: 12px; border: 1.5px solid var(--accent); background: var(--accent-soft); color: var(--accent); font: inherit; font-weight: 700; font-size: 16px; cursor: pointer; }
+.ai-lock { max-width: none; }
+.ai-res h3 { margin-top: 4px; }
+.ai-ans { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 8px; }
+.ai-ans p { margin: 4px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
