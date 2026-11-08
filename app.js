@@ -90,13 +90,15 @@ let RAW = [], ALL = [], FILES = [], SCHOOL = { template: {}, weeks: {}, holidays
 
 // ---------- група й мова (обирає кожен сам, зберігається в браузері) ----------
 const PREF_KEY = "dz-pref";
+// Група = вчителька української: Ганна (u2) — 1 група, Ольга (u1) — 2 група
+function withGroup(p) { return { ...p, group: p.ukr === 2 ? 1 : 2 }; }
 let PREF = (() => {
   try {
     const p = JSON.parse(localStorage.getItem(PREF_KEY));
-    return p && [1, 2].includes(p.group) && ["de", "es"].includes(p.lang) && [1, 2].includes(p.ukr) && [1, 2].includes(p.tech) ? p : null;
+    return p && ["de", "es"].includes(p.lang) && [1, 2].includes(p.ukr) && [1, 2].includes(p.tech) ? withGroup(p) : null;
   } catch { return null; }
 })();
-const pref = () => PREF || { group: 1, lang: "de", ukr: 1, tech: 1 };
+const pref = () => PREF || { group: 1, lang: "de", ukr: 2, tech: 1 };
 const otherLang = () => (pref().lang === "de" ? "Ісп" : "Нім");
 const applyPref = () => { ALL = RAW.concat(alertEntries()); };
 // Чи це ДЗ для мене (моя група / мова / вчителька). Чуже видно лише в календарі й «Предметах».
@@ -123,6 +125,7 @@ function setDone(id, on) {
 }
 const isDone = (e) => DONE.has(String(e.id));
 function savePref(p) {
+  p = withGroup(p);
   PREF = p;
   try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch { /* приватний режим — тільки до перезавантаження */ }
   applyPref();
@@ -131,10 +134,9 @@ function savePref(p) {
 function prefSwitches(p) {
   const seg = (attr, cur, opts, label) => `<div class="seg" role="group" aria-label="${label}">${opts.map(([v, t]) =>
     `<button type="button" data-${attr}="${v}" aria-pressed="${cur === v}">${t}</button>`).join("")}</div>`;
-  return seg("pg", p.group, [[1, "1 група"], [2, "2 група"]], "Група") +
+  return seg("pu", p.ukr, [[2, "Укр.: Ганна (1 гр.)"], [1, "Укр.: Ольга (2 гр.)"]], "Українська мова і група") +
     seg("pl", p.lang, [["de", "Німецька"], ["es", "Іспанська"]], "Мова") +
-    seg("pu", p.ukr, [[2, "Укр.: Ганна"], [1, "Укр.: Ольга"]], "Українська мова") +
-    seg("pt", p.tech, [[1, "Техн.: дівчинка"], [2, "Техн.: хлопчик"]], "Технології");
+    seg("pt", p.tech, [[1, "Техн.: Дівч."], [2, "Техн.: Хлопч."]], "Технології");
 }
 const byDue = (list = ALL) => {
   const m = {};
@@ -382,6 +384,10 @@ function home() {
   const t = today();
   const days = Object.keys(due).filter((d) => d > t).sort();
   let html = (ALERTS.now ? `<a class="alert-line" href="#/alerts">🚨 Повітряна тривога в Києві</a>` : "") + nowCard() + bdayWidget();
+  const debtN = debts().length;
+  if (debtN) html += `<a class="debt-line" href="#/debts">⚠️ Боргів: ${debtN} — переглянути ›</a>`;
+  const tmr = nextSchoolDay(t), tmrAll = tmr ? RAW.filter((e) => e.due === tmr && isMine(e)) : [];
+  if (tmrAll.length && tmrAll.every(isDone)) html += `<div class="all-done">✅ ДЗ ${tmr === iso(addDays(parse(t), 1)) ? "на завтра" : `на ${WD[parse(tmr).getDay()]}`} виконано</div>`;
   if (!days.length) {
     html += `<h1>Нічого не задано</h1><p class="sub">Найближчими днями здавати нічого.</p>`;
   } else {
@@ -496,31 +502,28 @@ function showSetup() {
   box.className = "setup";
   box.innerHTML = `<div class="setup-box" role="dialog" aria-modal="true" aria-labelledby="setup-h">
     <h2 id="setup-h">Привіт! 👋</h2>
-    <p>Обери групу, мову, учительку української й технології — сайт покаже твій розклад. Змінити можна у вкладці «Розклад».</p>
-    <div class="q">Група</div><div class="slot-g"></div>
+    <p>Обери вчительку української (від неї залежить група), мову й технології — сайт покаже твій розклад. Змінити можна у вкладці «Розклад».</p>
+    <div class="q">Українська мова з… (= твоя група)</div><div class="slot-u"></div>
     <div class="q">Друга іноземна</div><div class="slot-l"></div>
-    <div class="q">Українська мова з…</div><div class="slot-u"></div>
     <div class="q">Технології</div><div class="slot-t"></div>
     <button type="button" class="go" disabled>Готово</button></div>`;
   const draw = () => {
     const sw = document.createElement("div");
     sw.innerHTML = prefSwitches(draft);
-    box.querySelector(".slot-g").replaceChildren(sw.children[0]);
-    box.querySelector(".slot-l").replaceChildren(sw.children[0]);
     box.querySelector(".slot-u").replaceChildren(sw.children[0]);
+    box.querySelector(".slot-l").replaceChildren(sw.children[0]);
     box.querySelector(".slot-t").replaceChildren(sw.children[0]);
-    box.querySelector(".go").disabled = !(draft.group && draft.lang && draft.ukr && draft.tech);
+    box.querySelector(".go").disabled = !(draft.lang && draft.ukr && draft.tech);
   };
   box.addEventListener("click", (ev) => {
-    const g = ev.target.closest("[data-pg]"), l = ev.target.closest("[data-pl]");
-    if (g) { draft.group = Number(g.dataset.pg); draw(); }
+    const l = ev.target.closest("[data-pl]");
     if (l) { draft.lang = l.dataset.pl; draw(); }
     const u = ev.target.closest("[data-pu]");
     if (u) { draft.ukr = Number(u.dataset.pu); draw(); }
     const tt = ev.target.closest("[data-pt]");
     if (tt) { draft.tech = Number(tt.dataset.pt); draw(); }
-    if (ev.target.closest(".go") && draft.group && draft.lang && draft.ukr && draft.tech) {
-      savePref({ group: draft.group, lang: draft.lang, ukr: draft.ukr, tech: draft.tech });
+    if (ev.target.closest(".go") && draft.lang && draft.ukr && draft.tech) {
+      savePref({ lang: draft.lang, ukr: draft.ukr, tech: draft.tech });
       box.remove();
       document.body.classList.remove("no-scroll");
       render();
@@ -567,6 +570,7 @@ function cal() {
     <div class="grid">${cells}</div>
     <p class="legend">Крапки — дні, коли треба здати ДЗ. Натисни на будь-який день.</p>
     <div class="day-h"><b>${cap(relDay(calSel))}</b><span>${longDay(calSel)}</span></div>
+    <a class="visits-btn" href="#/visits/${calSel}">👥 Відвідування ›</a>
     <h3>Розклад</h3>${dayTable(calSel)}
     <h3>ДЗ на цей день</h3>
     ${sel.length ? sortSubj(sel).map((e) => card(e)).join("") : `<div class="empty small">Нічого не задано.</div>`}`;
@@ -617,15 +621,33 @@ function subject(tag) {
       <section><h3>Підручник</h3>${bks.length
         ? bks.map((b) => `<a class="btn-book" href="${bookUrl(b.slug)}" target="_blank" rel="noopener"><i class="ic">📖</i>${esc(b.title || "Відкрити підручник")}</a>`).join("")
         : `<p class="muted">Підручника поки немає.</p>`}
-        ${files.length ? `<h3>Файли</h3>${fileList(files)}` : ""}</section>
+        ${files.length ? `<h3>Файли</h3>${fileList(files)}` : ""}
+        ${ADMIN_TOKEN ? `<form class="upform" id="upform" data-tag="${esc(tag)}">
+          <h3>＋ Додати фото або файл</h3>
+          <input type="file" name="f" required aria-label="Файл">
+          <input type="text" name="title" placeholder="Назва (необовʼязково)" maxlength="150" aria-label="Назва">
+          <button type="submit">Додати</button>
+          <p class="muted small-note">До 25 МБ. Зʼявиться тут і у «Файлах» з датою додавання.</p></form>` : ""}</section>
     </div>
-    <h2>ДЗ ${list.length ? `<span class="muted">· ${list.length}</span>` : ""}</h2>
-    ${list.length ? list.map((e) => card(e, { showSubj: e.tag !== tag })).join("") : `<div class="empty">З цього предмета ще нічого не задавали.</div>`}`;
+    ${(() => {
+      if (!list.length) return `<h2>ДЗ</h2><div class="empty">З цього предмета ще нічого не задавали.</div>`;
+      const open = list.filter((e) => e.alert || !isDone(e)), done = list.filter((e) => !e.alert && isDone(e));
+      const cards = (l) => l.map((e) => card(e, { showSubj: e.tag !== tag })).join("");
+      return `<h2>Невиконані <span class="muted">· ${open.length}</span></h2>${open.length ? cards(open) : `<div class="empty small">Усе виконано 🎉</div>`}
+        <h2>Виконані <span class="muted">· ${done.length}</span></h2>${done.length ? cards(done) : `<div class="empty small">Ще нічого не позначено.</div>`}`;
+    })()}`;
 }
 
+const isImg = (name) => /\.(jpe?g|png|webp|gif|heic)$/i.test(name || "");
 function fileList(files) {
-  return `<ul class="files">${files.map((f) => `<li><a href="${esc(f.path)}" target="_blank" rel="noopener" download="${esc(f.name)}">
-      <b>${esc(f.title || f.name)}</b><span>${esc(subj(f.tag).name)} · ${short(f.added.slice(0, 10))} · ${sizeStr(f.size)}</span></a></li>`).join("")}</ul>`;
+  return `<ul class="files">${files.map((f) => {
+    const img = isImg(f.path) && !/\.heic$/i.test(f.path);
+    const added = `додано ${short(f.added.slice(0, 10))}${f.added.length > 15 ? ` о ${f.added.slice(11, 16)}` : ""}`;
+    const del = ADMIN_TOKEN ? `<button type="button" class="file-del" data-fdel="${esc(f.id)}" aria-label="Видалити файл">🗑</button>` : "";
+    return `<li class="${img ? "has-thumb" : ""}">${img ? `<button type="button" class="thumb" data-img="${esc(f.path)}" aria-label="Відкрити фото"><img src="${esc(f.path)}" loading="lazy" alt=""></button>` : ""}
+      <a href="${esc(f.path)}" target="_blank" rel="noopener" download="${esc(f.name)}">
+      <b>${esc(f.title || f.name)}</b><span>${esc(subj(f.tag).name)} · ${added} · ${sizeStr(f.size)}</span></a>${del}</li>`;
+  }).join("")}</ul>`;
 }
 
 function filesPage() {
@@ -762,7 +784,8 @@ function seatsPage() {
   return `<h1>Розсадка</h1><p class="sub">${cols} стовпчики × ${rows} рядів, парти по двоє.</p>
     <div class="board">Дошка</div>
     <div class="seats" style="--cols:${cols}">${grid}</div>
-    <h2>Хто з ким сидить</h2><table class="pairs"><thead><tr><th>Учень</th><th>Сидить з</th></tr></thead><tbody>${table}</tbody></table>`;
+    <h2>Хто з ким сидить</h2><table class="pairs"><thead><tr><th>Учень</th><th>Сидить з</th></tr></thead><tbody>${table}</tbody></table>
+    <p class="muted small-note seats-note">Місця не точні.</p>`;
 }
 const MON_GEN = ["січня", "лютого", "березня", "квітня", "травня", "червня", "липня", "серпня", "вересня", "жовтня", "листопада", "грудня"];
 // Найближча дата ДН (цього або наступного року) і скільки днів до неї
@@ -808,6 +831,48 @@ function weekendBdays() {
   return out.reverse();
 }
 
+// ---------- Борги ----------
+// ДЗ, у якого минув термін і яке не позначене виконаним. Рахуються лише ДЗ з терміном від DEBT_FROM.
+const DEBT_FROM = "2026-11-09";
+function debts() {
+  const t = today();
+  return RAW.filter((e) => isMine(e) && e.due && e.due >= DEBT_FROM && e.due < t && !isDone(e));
+}
+let DEBT_TAG = "";
+function debtsPage() {
+  const all = debts();
+  const tags = sortSubj([...new Set(all.map((e) => e.tag))].map((tag) => ({ tag }))).map((x) => x.tag);
+  if (DEBT_TAG && !tags.includes(DEBT_TAG)) DEBT_TAG = "";
+  const chips = all.length ? `<div class="chips" role="group" aria-label="Предмет">
+    <button type="button" data-dtag="" aria-pressed="${!DEBT_TAG}">Усі · ${all.length}</button>
+    ${tags.map((t) => `<button type="button" data-dtag="${esc(t)}" aria-pressed="${DEBT_TAG === t}" style="--c:${subj(t).color}">${esc(subj(t).name)} · ${all.filter((e) => e.tag === t).length}</button>`).join("")}</div>` : "";
+  const list = all.filter((e) => !DEBT_TAG || e.tag === DEBT_TAG);
+  const days = [...new Set(list.map((e) => e.due))].sort();
+  const body = days.map((d) => `<div class="day-h"><b>Треба було здати ${WD_ACC[parse(d).getDay()]}</b><span>${longDay(d)}</span></div>
+    ${sortSubj(list.filter((e) => e.due === d)).map((e) => card(e)).join("")}`).join("");
+  return `<h1>Борги</h1><p class="sub">Невиконані ДЗ, термін яких уже минув. Постав галочку — і борг зникне.</p>
+    ${chips}${body || `<div class="empty">Боргів немає 🎉</div>`}`;
+}
+
+// ---------- Відвідування (у розробці) ----------
+let visitsMon = null;
+const mondayOf = (s) => { const d = parse(s); return iso(addDays(d, -((d.getDay() + 6) % 7))); };
+function visitsPage(day) {
+  const sel = day || today();
+  if (!visitsMon || (day && mondayOf(day) !== visitsMon && !visitsPage.keep)) visitsMon = mondayOf(sel);
+  visitsPage.keep = false;
+  const days = [0, 1, 2, 3, 4].map((i) => iso(addDays(parse(visitsMon), i)));
+  const students = [...(CLASS.students || [])].sort((a, b) => a.localeCompare(b, "uk"));
+  const head = days.map((d) => `<th class="${d === sel ? "sel" : ""}${plan(d).length ? "" : " off"}">${WD_SHORT[(parse(d).getDay() + 6) % 7]}<br><span>${short(d)}</span></th>`).join("");
+  const rows = students.map((n) => `<tr><th scope="row">${esc(n)}</th>${days.map((d) => `<td class="${d === sel ? "sel" : ""}${plan(d).length ? "" : " off"}">·</td>`).join("")}</tr>`).join("");
+  return `<h1>Відвідування</h1>
+    <div class="dev-banner">🚧 У розробці — відмітки, хто був у школі, поки не ведуться.</div>
+    <div class="cal-nav"><button data-vweek="-1" aria-label="Попередній тиждень">‹</button>
+      <h2>${short(days[0])} – ${short(days[4])}</h2><button data-vweek="1" aria-label="Наступний тиждень">›</button></div>
+    <div class="visits-wrap"><table class="visits"><thead><tr><th>Учень</th>${head}</tr></thead><tbody>${rows ||
+      `<tr><td colspan="6">Список учнів ще не додано.</td></tr>`}</tbody></table></div>`;
+}
+
 // ---------- «Секрет» → АвтоГДЗ ----------
 // Ключ АвтоГДЗ живе до закриття вкладки, ключ «Від ШІ» — на пристрої (пароль питається один раз)
 const store = (kind) => (kind === "ai" ? localStorage : sessionStorage);
@@ -822,19 +887,36 @@ function gdzDue() {
   const d = nextSchoolDay(today());
   return { d, list: d ? sortSubj(RAW.filter((e) => e.due === d && isMine(e))) : [] };
 }
-function secretPage() {
-  if (!GDZ_TOKEN) return lockForm("lock2", "Секрет", "Введи пароль, щоб побачити вміст.");
-  const { d, list } = gdzDue();
-  const items = list.map((e) => {
-    const s = subj(e.tag), g = grpLabel(e);
-    return `<button type="button" class="gdz-item" data-gdz="${esc(e.id)}" style="--c:${s.color}">
+let GDZ_TAB = "tmr";
+function gdzRow(e) {
+  const s = subj(e.tag), g = grpLabel(e), done = isDone(e);
+  return `<div class="gdz-row${done ? " is-done" : ""}" style="--c:${s.color}">
+    <button type="button" class="check" data-done="${esc(e.id)}" role="checkbox" aria-checked="${done}" aria-label="${done ? "Повернути в невиконане" : "Позначити виконаним"}"></button>
+    <button type="button" class="gdz-item" data-gdz="${esc(e.id)}">
       <b>${esc(s.name)}<i class="gdot" style="--g:${groupColor(e.tag)}"></i>${g ? ` <span class="grp">${esc(g)}</span>` : ""}</b>
       <span>${esc(e.homework)}</span>
-      <em>${GDZ_TAGS.includes(e.tag) ? "Шукати ГДЗ ›" : "Відкрити ›"}</em></button>`;
-  }).join("");
-  return `<h1 class="gdz-h">АвтоГДЗ</h1>
-    <p class="sub">ДЗ на ${d ? `${whenDay(d)}, ${short(d)}` : "найближчий день"}. Натисни на завдання.</p>
-    ${items || `<div class="empty">На ${d ? whenDay(d) : "завтра"} ДЗ ще не задали.</div>`}`;
+      <em>${GDZ_TAGS.includes(e.tag) ? "Шукати ГДЗ ›" : "Відкрити ›"}</em></button></div>`;
+}
+// невиконане вгорі, всередині — за важкістю
+const gdzSort = (l) => [...sortSubj(l.filter((e) => !isDone(e))), ...sortSubj(l.filter(isDone))];
+function secretPage() {
+  if (!GDZ_TOKEN) return lockForm("lock2", "Секрет", "Введи пароль, щоб побачити вміст.");
+  const tabs = `<div class="subtabs gdz-tabs" role="tablist">
+    <button type="button" role="tab" data-gtab="tmr" aria-selected="${GDZ_TAB === "tmr"}">На завтра</button>
+    <button type="button" role="tab" data-gtab="all" aria-selected="${GDZ_TAB === "all"}">Усі ДЗ</button></div>`;
+  let body;
+  if (GDZ_TAB === "all") {
+    const t = today(), mine = RAW.filter((e) => isMine(e) && e.due);
+    const days = [...new Set(mine.map((e) => e.due))];
+    const order = [...days.filter((d) => d >= t).sort(), ...days.filter((d) => d < t).sort().reverse()];
+    body = order.map((d) => `<div class="day-h"><b>${d < t ? "Було · " : ""}${cap(relDay(d))}</b><span>${longDay(d)}</span></div>
+      ${gdzSort(mine.filter((e) => e.due === d)).map(gdzRow).join("")}`).join("") || `<div class="empty">ДЗ ще немає.</div>`;
+  } else {
+    const { d, list } = gdzDue();
+    body = `<p class="sub">ДЗ на ${d ? `${whenDay(d)}, ${short(d)}` : "найближчий день"}. Натисни на завдання, галочка — виконано.</p>
+      ${gdzSort(list).map(gdzRow).join("") || `<div class="empty">На ${d ? whenDay(d) : "завтра"} ДЗ ще не задали.</div>`}`;
+  }
+  return `<h1 class="gdz-h">АвтоГДЗ</h1>${tabs}${body}`;
 }
 
 function gdzModalHtml() {
@@ -873,9 +955,11 @@ function gdzModalHtml() {
   } else if (a && a.status === "error") ai = `<p class="err">${esc(a.error)}</p>`;
   const aiBtn = !GDZ.aiLogin && !(a && ["queue", "run", "starting", "done"].includes(a.status))
     ? `<button type="button" class="btn-ai" data-ai>✨ Від ШІ${AI_TOKEN ? "" : " (доступ)"}</button>` : "";
+  const done = isDone(e);
   return `<div class="modal-card" role="dialog" aria-modal="true" aria-label="АвтоГДЗ: ${esc(s.name)}">
     <div class="modal-h" style="--c:${s.color}"><b>${esc(s.name)}</b><button type="button" class="close" data-gdz-close aria-label="Закрити">×</button></div>
     <p class="hw">${linkify(e.homework)}</p>
+    <button type="button" class="done-toggle${done ? " on" : ""}" data-mdone="${esc(e.id)}">${done ? "✔ Виконано — повернути" : "✔ Позначити виконаним"}</button>
     ${crops ? `<div class="gdz-crops">${crops}</div>` : ""}
     ${has ? (f ? "" : `<div class="gdz-solve"><button type="button" class="btn-solve" data-solve>Розвʼязати</button></div>`)
       : `<p class="muted gdz-dev">Повне АвтоГДЗ до цього предмету у розробці.</p>`}
@@ -927,6 +1011,8 @@ modal.addEventListener("click", async (ev) => {
   if (ev.target === modal || ev.target.closest("[data-gdz-close]")) { closeModal(); return; }
   const img = ev.target.closest("[data-img]");
   if (img) { openViewer(img.dataset.img); return; }
+  const md = ev.target.closest("[data-mdone]");
+  if (md) { setDone(md.dataset.mdone, !DONE.has(md.dataset.mdone)); renderModal(); render(); return; }
   if (ev.target.closest("[data-solve]")) {
     const id = GDZ.open;
     GDZ.find = "loading"; renderModal();
@@ -955,55 +1041,156 @@ modal.addEventListener("submit", async (ev) => {
 function infoPage() {
   const user = `
   <section class="doc">
-    <h2>Що це</h2>
-    <p>Сайт 8-Д з усім для навчання: домашні завдання, розклад, підручники, файли від учителів і повітряні тривоги в Києві.
-      Працює з телефона й комп'ютера, нічого встановлювати не треба.</p>
+    <nav class="doc-toc" aria-label="Зміст">
+      <a href="#i-what">Що це</a><a href="#i-start">Перше відкриття</a><a href="#i-home">Головна</a><a href="#i-cal">Календар</a>
+      <a href="#i-week">Розклад</a><a href="#i-menu">Меню ⋯</a><a href="#i-check">Галочки й борги</a><a href="#i-colors">Кольори</a>
+      <a href="#i-groups">Групи</a><a href="#i-alerts">Тривоги</a><a href="#i-tips">Дрібниці</a>
+    </nav>
 
-    <h2>Звідки береться ДЗ</h2>
-    <p>ДЗ надсилають у Telegram-бота (власник і адміни). Бот сам визначає предмет і дату здачі за розкладом,
-      а після підтвердження публікує ДЗ у канал і на сайт. Якщо в завданні є номер вправи, під ДЗ з'являється вкладка
-      <b>«Завдання»</b> з вирізкою з підручника.</p>
-
-    <h2>Перше відкриття</h2>
-    <p>Сайт питає <b>групу</b> (1 або 2), <b>другу іноземну</b> (німецька чи іспанська), <b>з ким українська</b> (Ганна чи Ольга)
-      і <b>технології</b> (дівчата — Кисельова, хлопці — Резніченко).
-      Після цього весь сайт показує саме твій розклад і твоє ДЗ. Змінити вибір — перемикачами вгорі вкладки «Розклад».</p>
-
-    <h2>Вкладки</h2>
+    <h2 id="i-what">Що це</h2>
     <ul>
-      <li><b>Головна</b> — що здавати найближчим часом. Згори — картка «Зараз»: який урок іде і скільки до кінця, або перерва і що далі.</li>
-      <li><b>Календар</b> — натисни на будь-який день: розклад цього дня й усе ДЗ, яке треба здати. Крапки на днях — є ДЗ.</li>
-      <li><b>Розклад</b> — тиждень з кабінетами й учителями, А/Б тижні, перемикачі. У скорочені дні — позначка «⏱ Скорочені уроки». Зверху — сьогоднішній день із живою підсвіткою уроку й перерви
-        (після уроків — завтрашній).</li>
-      <li><b>⋯ → Предмети</b> — кожен предмет окремо: найближчі уроки, підручник, файли, усе ДЗ.</li>
-      <li><b>⋯ → Файли</b> — підручники (PDF) і файли від учителів.</li>
-      <li><b>⋯ → Виконане</b> — ДЗ, які ти позначив галочкою.</li>
-      <li><b>⋯ → Тривоги</b> — тривоги в м. Київ: коли були, скільки тривали, які уроки зачепили.</li>
-      <li><b>⋯ → Додаткове</b>: <b>Розсадка</b> (хто з ким сидить), <b>Дні народження</b> (на головній — нагадування за 2 дні).</li>
+      <li>Сайт класу 8-Д: домашні завдання, розклад з дзвінками й учителями, підручники, файли від учителів, тривоги в Києві,
+        розсадка й дні народження.</li>
+      <li>Працює в будь-якому браузері — з телефона й комп'ютера. Встановлювати нічого не треба, реєструватись теж.</li>
+      <li>ДЗ на сайт додає Telegram-бот (його ведуть власник і адміни) — ті самі пости йдуть у Telegram-канал класу.</li>
+      <li>Сайт працює з ноутбука-сервера. Якщо раптом не відкривається — найімовірніше, ноутбук вимкнений; спробуй пізніше.</li>
     </ul>
 
-    <h2>Галочки</h2>
-    <p>Зробив ДЗ — натисни квадратик біля нього. На головній воно викреслиться й зникне, в інших місцях лишиться викресленим.
-      Усе виконане — у «⋯ → Виконане», там галочку можна зняти. Галочки зберігаються лише у твоєму браузері.</p>
-
-    <h2>Групи й чуже ДЗ</h2>
-    <p>Для англійської, інформатики й технологій ДЗ може бути окремо для 1 і 2 групи, для української — окремо для різних учительок,
-      а німецька й іспанська — різні предмети. На головній видно тільки твоє. Чуже — лише в календарі й «Предметах», притінене, з міткою групи.</p>
-
-    <h2>Тривоги</h2>
-    <p>Сайт сам стежить за тривогою в Києві. Під час тривоги на головній — червоний рядок. Якщо урок закінчився під тривогу
-      (тривога йшла хоча б останні 10 хв) і ДЗ з нього не задали — замість ДЗ з'явиться червона плашка <b>«Була тривога!»</b>.
-      У календарі за уроком — червона смуга: скільки відсотків уроку пройшло під тривогою.</p>
-
-    <h2>Корисно знати</h2>
+    <h2 id="i-start">Перше відкриття</h2>
     <ul>
-      <li>Сайт оновлює дані сам; якщо щось не з'явилось — просто онови сторінку.</li>
-      <li>Щоб сайт був як застосунок: у браузері телефона «Поділитися» → «На екран „Додому“» (iPhone) або ⋮ → «Додати на головний екран» (Android).</li>
-      <li>Вибір групи, галочки — тільки у твоєму браузері, нікуди не відправляються.</li>
-      <li>Пости з ДЗ також є в Telegram-каналі класу.</li>
+      <li>Сайт питає три речі, і далі все підлаштовується під тебе:
+        <ul>
+          <li><b>Укр.: Ганна (1 гр.)</b> чи <b>Укр.: Ольга (2 гр.)</b> — з ким у тебе українська мова. Від цього ж залежить твоя група
+            для англійської та інформатики: Ганна — 1 група, Ольга — 2 група.</li>
+          <li><b>Друга іноземна</b> — німецька чи іспанська.</li>
+          <li><b>Технології</b> — «Дівч.» (Кисельова, каб. 326) чи «Хлопч.» (Резніченко).</li>
+        </ul></li>
+      <li>Змінити вибір будь-коли — перемикачами вгорі вкладки <b>«Розклад»</b>. Діє одразу на весь сайт.</li>
+      <li>Вибір зберігається лише в цьому браузері. На іншому телефоні чи комп'ютері сайт спитає ще раз.</li>
+    </ul>
+
+    <h2 id="i-home">Головна</h2>
+    <ul>
+      <li><b>«Зараз»</b> вгорі — який урок іде, кабінет, учитель і скільки до перерви; на перерві — що далі й скільки до дзвінка.
+        Цифри оновлюються щосекунди.</li>
+      <li><b>🎂 Дні народження</b> — якщо ДН сьогодні, завтра чи післязавтра. У понеділок до кінця 3-го уроку — ще й ДН, що були на вихідних.</li>
+      <li><b>⚠️ Боргів: N</b> — є прострочені невиконані ДЗ (див. «Борги»).</li>
+      <li><b>✅ ДЗ на завтра виконано</b> — коли ти поставив галочки на все ДЗ найближчого дня.</li>
+      <li><b>«Здати …»</b> — ДЗ на найближчий день, де ще щось не зроблено, нижче — «Далі» на тиждень уперед.
+        Порядок у кожному дні — від найважчих предметів до найлегших.</li>
+      <li>На картці ДЗ: предмет з крапкою важкості, мітка групи (якщо ДЗ лише для групи), коли задали → коли здати, текст,
+        фото дошки (натисни — відкриється на весь екран) і <b>«Завдання»</b> — вирізки з підручника з посиланням «відкрити в підручнику».</li>
+      <li>Червона плашка <b>«🚨 Повітряна тривога в Києві»</b> — тривога саме зараз.</li>
+      <li>Внизу — <b>«✔ Виконано: N»</b>: скільки майбутніх ДЗ ти вже зробив.</li>
+    </ul>
+
+    <h2 id="i-cal">Календар</h2>
+    <ul>
+      <li>Гортай місяці стрілками ‹ ›, натисни на день — під календарем його розклад і все ДЗ, яке треба здати цього дня
+        (зокрема й чуже — інших груп, притінене).</li>
+      <li>Крапка під числом — у цей день є ДЗ. Її колір — середня важкість ДЗ цього дня (див. «Кольори»).</li>
+      <li>Сьогодні обведено, вихідні й канікули — блідіші.</li>
+      <li>У розкладі дня червона смуга й «🚨 N%» — скільки уроку пройшло під тривогою.</li>
+      <li><b>👥 Відвідування</b> — відкриває цей день у розділі «Відвідування».</li>
+    </ul>
+
+    <h2 id="i-week">Розклад</h2>
+    <ul>
+      <li>Вгорі — перемикачі (українська/група, мова, технології).</li>
+      <li>Далі — <b>сьогодні</b> (після уроків — наступний навчальний день) з живою підсвіткою: поточний урок виділено й показано,
+        скільки до перерви та хто веде урок; пройдені уроки сірішають, між ними — плашка «Перерва» з часом до дзвінка,
+        наступний урок трохи більший.</li>
+      <li>Нижче — увесь тиждень: час уроків, кабінет (у фізкультури — «зал»), крапки важкості. Гортай тижні стрілками.</li>
+      <li>Тижні чергуються <b>А/Б</b> (від цього залежать деякі уроки, наприклад у понеділок), сайт рахує це сам.</li>
+      <li><b>⏱ Скорочені уроки</b> — у такі дні сайт рахує все (таймер, тривоги) за скороченими дзвінками.</li>
+    </ul>
+
+    <h2 id="i-menu">Меню ⋯</h2>
+    <ul>
+      <li><b>Предмети</b> — плитки за важкістю (кількість ДЗ, 📖 — є підручник). Сторінка предмета: учитель, 5 найближчих уроків,
+        підручник(и), файли, і ДЗ двома блоками — <b>Невиконані</b> та <b>Виконані</b>. У Історії України видно ще й ДЗ з громадянської освіти.</li>
+      <li><b>Файли</b> — файли й фото від учителів (з датою, коли додано; фото — з мініатюрою) і всі підручники PDF.
+        В англійської два: Wider World 4 Teacher's Book (зі сторінками підручника) і Workbook.</li>
+      <li><b>Виконане</b> — усе, що ти позначив; там галочку можна зняти.</li>
+      <li><b>Борги</b> — прострочене невиконане ДЗ, з фільтром за предметом.</li>
+      <li><b>Тривоги</b> — тривоги в Києві: коли почались і скінчились, скільки тривали, які уроки й перерви зачепили.</li>
+      <li><b>Інфо</b> — ця сторінка.</li>
+      <li><b>Додаткове</b>:
+        <ul>
+          <li><b>Розсадка</b> — схема класу (дошка вгорі, 3 стовпчики парт) і таблиця «хто з ким». Місця не точні.</li>
+          <li><b>Дні народження</b> — усі ДН від найближчого, по місяцях.</li>
+          <li><b>Відвідування</b> — таблиця учнів по днях. Поки у розробці: відмітки ще не ведуться.</li>
+          <li><b>Секрет</b> — закритий розділ з паролем.</li>
+          <li><b>Адмінпанель</b> — тільки для адмінів.</li>
+        </ul></li>
+    </ul>
+
+    <h2 id="i-check">Галочки, виконане й борги</h2>
+    <ul>
+      <li>Зробив ДЗ — натисни квадратик біля предмета. На головній картка викреслиться й зникне, в інших місцях лишиться викресленою.</li>
+      <li>Зняти галочку — ще раз натиснути (у «Виконаному», календарі чи на сторінці предмета).</li>
+      <li><b>Борг</b> — твоє ДЗ, термін якого вже минув, а галочки немає. Рахуються ДЗ з терміном від 9 листопада 2026.
+        Поставиш галочку — борг зникне.</li>
+      <li>Галочки зберігаються лише в цьому браузері — на іншому пристрої їх не буде, і ніхто інший їх не бачить.</li>
+    </ul>
+
+    <h2 id="i-colors">Кольори важкості</h2>
+    <ul>
+      <li><span class="dot-i" style="--c:#e03131"></span><b>Найголовніші</b> — алгебра, геометрія, українська мова, англійська, історія України.</li>
+      <li><span class="dot-i" style="--c:#f76707"></span><b>Основні</b> — українська література, всесвітня історія, фізика, хімія, біологія.</li>
+      <li><span class="dot-i" style="--c:#f2b705"></span><b>Просто уроки</b> — німецька, іспанська, зарубіжна література, громадянська освіта,
+        фінансова грамотність, географія.</li>
+      <li><span class="dot-i" style="--c:#2f9e44"></span><b>Уроки-відпочинки</b> — фізкультура, мистецтво, технології, ЗБД, інформатика.</li>
+      <li>У календарі крапка дня — середнє за ДЗ цього дня (алгебра й англійська там рахуються як помаранчеві).</li>
+    </ul>
+
+    <h2 id="i-groups">Групи й чуже ДЗ</h2>
+    <ul>
+      <li>Англійська й інформатика — окремо для 1 і 2 групи; українська — окремо для Ганни й Ольги; технології — для дівчат і хлопців;
+        німецька й іспанська — різні предмети.</li>
+      <li>На головній, у боргах і АвтоГДЗ — тільки твоє. Чуже видно в календарі й «Предметах» — притінене, з міткою групи.</li>
+    </ul>
+
+    <h2 id="i-alerts">Тривоги</h2>
+    <ul>
+      <li>Сайт сам щопівхвилини перевіряє тривогу в м. Київ і записує її.</li>
+      <li>Якщо тривога йшла хоча б останні 10 хв уроку і ДЗ з нього не задали — на місці ДЗ з'являється плашка <b>«Була тривога!»</b>
+        (до наступного уроку цього предмета). Якщо ДЗ потім таки надішлють — плашка зміниться на справжнє ДЗ.</li>
+      <li>Поки ноутбук-сервер вимкнений, тривоги не записуються.</li>
+    </ul>
+
+    <h2 id="i-tips">Дрібниці</h2>
+    <ul>
+      <li>Дані підтягуються під час відкриття, тривоги — кожні 30 с. Не бачиш нового ДЗ — онови сторінку.</li>
+      <li>Як застосунок: iPhone — «Поділитися» → «На екран „Додому“»; Android — ⋮ → «Додати на головний екран».</li>
+      <li>Темна тема вмикається сама, якщо вона увімкнена на телефоні.</li>
+      <li>Фото й вирізки відкриваються на весь екран; закрити — натиснути ще раз або Esc.</li>
+      <li>Учителі в «Розкладі» показані лише біля уроку, що йде зараз; повний список — на сторінках предметів.</li>
+      <li>Сайт нічого про тебе не збирає, окрім звичайних даних відвідування (IP) для захисту від спаму.</li>
     </ul>
 
     <div class="bug">🐞 <b>Знайшов баг або є ідея?</b> Пиши мені в Telegram: <a href="https://t.me/Spl1ted" target="_blank" rel="noopener">@Spl1ted</a></div>
+  </section>`;
+  const gdzDoc = !GDZ_TOKEN ? "" : `
+  <section class="doc gdz-doc">
+    <h2><span class="gdz-dot" aria-hidden="true"></span> АвтоГДЗ</h2>
+    <ul>
+      <li>Режим вмикається паролем «Секрету». Поки він діє, у шапці синє «ГДЗ», а пункт меню зветься «АвтоГДЗ».
+        Діє до закриття вкладки (оновлення сторінки не скидає).</li>
+      <li>Дві вкладки: <b>«На завтра»</b> — ДЗ на найближчий навчальний день, і <b>«Усі ДЗ»</b> — усе твоє ДЗ за днями (майбутнє вгорі, потім минуле).</li>
+      <li>Галочка зліва — позначити виконаним (те саме, що на головній). Виконане опускається вниз і викреслюється.</li>
+      <li>Натисни на ДЗ — відкриється вікно з текстом, вирізками з підручника й кнопкою <b>«Розв'язати»</b>.
+        Сайт шукає готову відповідь на gdzonline.net і shkola.in.ua — для <b>алгебри, геометрії, української мови й історії України</b>.
+        Для інших предметів — «Повне АвтоГДЗ до цього предмету у розробці».</li>
+      <li>Що шукається — номери з ДЗ: «№ 245, 247», «№245–247», «с. 92 впр. 1», «ст. 45 № 3», «§ 5».
+        Якщо є і сторінка, і завдання — шукається саме це завдання на цій сторінці. Без номерів шукати нема чого.</li>
+      <li>Під кожною відповіддю — посилання на джерело. Не знайшлось — є посилання на весь збірник.</li>
+      <li><b>✨ Від ШІ</b> — розвʼязок від штучного інтелекту (Claude). Перший раз потрібен окремий пароль — далі на цьому пристрої не питає.
+        ШІ бачить фото завдання з підручника (для англійської — усю сторінку) і, якщо є, ГДЗ, щоб звіритись.
+        Творчі завдання (твір, речення, лист) — два різні варіанти на вибір. Займає до 1–2 хв.</li>
+      <li>Кожне ДЗ ШІ розвʼязує один раз — далі всі бачать готову відповідь одразу. Нових розвʼязків — не більше 30 на день на всіх.</li>
+      <li>ГДЗ і ШІ можуть помилятись — перевіряй і розбирайся, а не просто списуй 🙂</li>
+    </ul>
   </section>`;
   const adm = !ADMIN_TOKEN ? "" : `
   <section class="doc admin-doc">
@@ -1021,6 +1208,9 @@ function infoPage() {
       <li><b>Сайт → Скорочені уроки</b> — вибери день і «Увімкнути»: таймер, розклад і тривоги рахуються за скороченими дзвінками.
         З Telegram: <code>/short</code>, <code>/short 12.11</code>, <code>/short off 12.11</code>.</li>
       <li><b>Сайт → Перезапустити</b> — якщо сайт поводиться дивно. Займає ~10 с.</li>
+      <li><b>Файли до предмета</b>: на сторінці предмета (в адмін-режимі) — «＋ Додати фото або файл», до 25 МБ.
+        Файл зʼявиться на сторінці предмета й у «Файлах» з датою додавання. 🗑 біля файлу — видалити.</li>
+      <li><b>Борги</b> рахуються від <code>DEBT_FROM</code> у <code>site/app.js</code> (зараз 9.11.2026). <b>Відвідування</b> — поки лише заготовка.</li>
     </ul>
     <h3>Бот (Telegram)</h3>
     <ul>
@@ -1042,13 +1232,13 @@ function infoPage() {
       <li>Сайт назовні — через Tailscale Funnel; якщо адреса не відкривається, на ноутбуці: <code>tailscale funnel status</code>.</li>
       <li><b>Оновлення коду — дистанційно</b>: з Mac (Claude, скіл «hw-deploy» або <code>python3 tools/deploy.py</code>) після підтвердження власника.
         Ноутбук перевіряє ключ і код, робить резервну копію, оновлюється й сам перезапускає бота й сайт. Відкат — <code>tools/deploy.py --rollback</code>.</li>
-      <li>Розсадка й дні народження — <code>data\class.json</code>.</li>
+      <li>Розсадка, дні народження й список учнів (для «Відвідування») — <code>data\class.json</code>.</li>
       <li>АвтоГДЗ («Секрет»): пошук на gdzonline.net і shkola.in.ua (алгебра, геометрія, укрмова, історія), «Від ШІ» — Claude Sonnet
         на ноутбуці, до 30 нових розвʼязків на день (готові відповіді — з кешу). Підручники й індекси книжок оновлюються
         <code>tools/deploy.py --files</code>.</li>
     </ul>
   </section>`;
-  return `<h1>Інфо</h1><p class="sub">Як усе влаштовано.</p>${user}${adm}`;
+  return `<h1>Інфо</h1><p class="sub">Усе, що треба знати про сайт.</p>${gdzDoc}${user}${adm}`;
 }
 
 // ---------- роутинг ----------
@@ -1074,10 +1264,12 @@ function render() {
   else if (h === "/bdays") { tab = "bdays"; html = bdaysPage(); }
   else if (h === "/alerts") { tab = "alerts"; html = alertsPage(); }
   else if (h === "/done") { tab = "done"; html = donePage(); }
+  else if (h === "/debts") { tab = "debts"; html = debtsPage(); }
+  else if (h === "/visits" || h.startsWith("/visits/")) { tab = "visits"; html = visitsPage(h.slice(8) || null); }
   else html = home();
   app.innerHTML = html;
   document.querySelectorAll(".tabs a, .drawer a").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
-  document.getElementById("more").classList.toggle("on", ["subj", "files", "secret", "alerts", "done", "admin", "info", "seats", "bdays"].includes(tab));
+  document.getElementById("more").classList.toggle("on", ["subj", "files", "secret", "alerts", "done", "debts", "visits", "admin", "info", "seats", "bdays"].includes(tab));
   setDrawer(false);
   document.getElementById("admin-badge").hidden = !ADMIN_TOKEN;
   document.getElementById("gdz-badge").hidden = !GDZ_TOKEN;
@@ -1150,9 +1342,9 @@ app.addEventListener("click", (ev) => {
     } else render();
     return;
   }
-  const pg = ev.target.closest("[data-pg]"), pl = ev.target.closest("[data-pl]"), pu = ev.target.closest("[data-pu]"), pt = ev.target.closest("[data-pt]");
-  if (pg || pl || pu || pt) {
-    savePref({ ...pref(), ...(pg ? { group: Number(pg.dataset.pg) } : pl ? { lang: pl.dataset.pl } : pu ? { ukr: Number(pu.dataset.pu) } : { tech: Number(pt.dataset.pt) }) });
+  const pl = ev.target.closest("[data-pl]"), pu = ev.target.closest("[data-pu]"), pt = ev.target.closest("[data-pt]");
+  if (pl || pu || pt) {
+    savePref({ ...pref(), ...(pl ? { lang: pl.dataset.pl } : pu ? { ukr: Number(pu.dataset.pu) } : { tech: Number(pt.dataset.pt) }) });
     render(); return;
   }
   if (ev.target.closest("[data-top]")) { scrollTo({ top: 0, behavior: "smooth" }); return; }
@@ -1160,6 +1352,19 @@ app.addEventListener("click", (ev) => {
   if (wk) { weekOff += Number(wk.dataset.week); render(); return; }
   const mon = ev.target.closest("[data-mon]");
   if (mon) { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + Number(mon.dataset.mon), 1); render(); return; }
+  const gt = ev.target.closest("[data-gtab]");
+  if (gt) { GDZ_TAB = gt.dataset.gtab; render(); return; }
+  const dt = ev.target.closest("[data-dtag]");
+  if (dt) { DEBT_TAG = dt.dataset.dtag; render(); return; }
+  const vw = ev.target.closest("[data-vweek]");
+  if (vw) { visitsMon = iso(addDays(parse(visitsMon), 7 * Number(vw.dataset.vweek))); visitsPage.keep = true; render(); return; }
+  const fd = ev.target.closest("[data-fdel]");
+  if (fd) {
+    if (!confirm("Видалити цей файл із сайту?")) return;
+    adminApi("file-delete", { id: fd.dataset.fdel }).then(() => { FILES = FILES.filter((f) => String(f.id) !== fd.dataset.fdel); render(); })
+      .catch((e) => alert(e.message));
+    return;
+  }
   const gi = ev.target.closest("[data-gdz]");
   if (gi) { GDZ = { open: gi.dataset.gdz, find: null, ai: null, aiLogin: false, poll: null }; renderModal(); aiPeek(); return; }
   const img = ev.target.closest("[data-img]");
@@ -1209,6 +1414,23 @@ app.addEventListener("submit", async (ev) => {
       RAW.push(j.entry); applyPref(); ADD = { tag: "", grp: 0 }; render();
       alert(j.channel ? "ДЗ додано на сайт і в канал ✅" : `ДЗ додано на сайт ✅${body.channel ? `\nКанал: ${j.channel_error}` : ""}`);
     } catch { alert("Немає звʼязку із сервером"); }
+    return;
+  }
+  if (id === "upform") {
+    ev.preventDefault();
+    const f = ev.target, file = f.elements.f.files[0], btn = f.querySelector("[type=submit]");
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) { alert("Файл більший за 25 МБ"); return; }
+    btn.disabled = true; btn.textContent = "Завантажую…";
+    try {
+      const r = await fetch("api/admin/file", { method: "POST", body: file, headers: {
+        "X-Admin-Token": ADMIN_TOKEN, "X-Tag": encodeURIComponent(f.dataset.tag), "X-File-Name": encodeURIComponent(file.name),
+        "X-Title": encodeURIComponent(f.elements.title.value.trim()), "Content-Type": "application/octet-stream" } });
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 401) { setToken(null); render(); alert("Сесія адміна закінчилась."); return; }
+      if (!j.ok) throw new Error(j.error || "Не вдалося завантажити");
+      FILES.push(j.file); render();
+    } catch (e) { alert(e.message || "Немає звʼязку із сервером"); btn.disabled = false; btn.textContent = "Додати"; }
     return;
   }
   if (id === "shortform") {
