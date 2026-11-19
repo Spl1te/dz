@@ -410,7 +410,7 @@ function alertBanner() {
     const t = aiFresh() && AIA.threat ? ` · загроза: ${esc(AIA.threat)}` : "";
     const end = aiFresh() && AIA.end_min ? `за оцінкою ШІ ще ~${AIA.end_min} хв · ` : "";
     return `<a class="alert-line" href="#/alerts">🚨 Повітряна тривога в Києві${t}
-      ${t || end ? `<small>${end}тип і тривалість — неофіційно, ШІ за каналами моніторингу</small>` : ""}</a>`;
+      ${end ? `<small>${end.replace(/ · $/, "")}</small>` : ""}</a>`;
   }
   if (aiFresh() && !AIA.stale && AIA.risk >= 5) {
     return `<a class="risk" href="#/alerts" style="text-decoration:none;display:block">
@@ -760,7 +760,7 @@ function lockForm(id, title, hint) {
 function adminPage() {
   if (!ADMIN_TOKEN) return lockForm("lock", "Адмінпанель", GDZ_TOKEN
     ? `Зараз увімкнено АвтоГДЗ${AI_TOKEN ? " + ШІ" : ""}. Тут можна ввести інший пароль.`
-    : "Введи пароль — адмінпанель або режим АвтоГДЗ.");
+    : "Введи пароль.");
   if (!ADM.data) { loadAdmin(); return `<h1>Адмінпанель</h1><p class="muted pad">Завантаження…</p>`; }
   if (ADM.data.error) return `<h1>Адмінпанель</h1><div class="empty">${esc(ADM.data.error)}</div>`;
   const tabs = [["add", "＋ Додати ДЗ"], ["visitors", "Відвідувачі й блок"], ["deleted", `Видалені ДЗ${ADM.data.deleted.length ? ` · ${ADM.data.deleted.length}` : ""}`], ["site", "Сайт"]];
