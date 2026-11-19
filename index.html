@@ -12,13 +12,14 @@
 <body>
 <header class="top">
   <a class="brand" href="#/">ДЗ <span>8-Д</span></a>
-  <a class="admin-badge" id="admin-badge" href="#/admin" hidden><i aria-hidden="true"></i>Адмін-доступ!</a>
-  <a class="gdz-badge" id="gdz-badge" href="#/secret" hidden><i aria-hidden="true"></i>ГДЗ</a>
+  <span class="admin-badge" id="admin-badge" hidden><i aria-hidden="true"></i><a href="#/admin">Адмін-доступ!</a><button type="button" class="badge-x" data-lockout aria-label="Вийти з адмін-режиму">✕</button></span>
+  <span class="gdz-badge" id="gdz-badge" hidden><i aria-hidden="true"></i><a href="#/secret">ГДЗ<span id="gdz-ai-mark"></span></a><button type="button" class="badge-x" data-gdzout aria-label="Вийти з режиму ГДЗ">✕</button></span>
   <nav class="tabs" aria-label="Розділи">
     <a href="#/" data-tab="home">Головна</a>
     <a href="#/cal" data-tab="cal">Календар</a>
     <a href="#/week" data-tab="week">Розклад</a>
   </nav>
+  <a class="adm-btn" id="adm-btn" href="#/admin" aria-label="Адмінпанель"><span class="short">A</span><span class="full">Адмінпанель</span></a>
   <button class="more" id="more" aria-label="Інші розділи" aria-expanded="false" aria-controls="drawer">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
   </button>
@@ -28,18 +29,18 @@
   <div class="drawer-h"><b>Ще</b><button class="close" id="drawer-close" aria-label="Закрити">×</button></div>
   <nav>
     <a href="#/s" data-tab="subj">Предмети</a>
-    <a href="#/files" data-tab="files">Файли</a>
     <a href="#/done" data-tab="done">Виконане</a>
-    <a href="#/debts" data-tab="debts">Борги</a>
-    <a href="#/alerts" data-tab="alerts">Тривоги</a>
-    <a href="#/info" data-tab="info">Інфо</a>
+    <a href="#/debts" data-tab="debts">Борги <span class="cnt" id="debt-cnt"></span></a>
+    <a href="#/visits" data-tab="visits">Відвідування</a>
     <div class="drawer-sec">Додаткове</div>
+    <a href="#/alerts" data-tab="alerts">Тривоги</a>
+    <a href="#/files" data-tab="files">Файли</a>
     <a href="#/seats" data-tab="seats">Розсадка</a>
     <a href="#/bdays" data-tab="bdays">Дні народження</a>
-    <a href="#/visits" data-tab="visits">Відвідування</a>
-    <a href="#/secret" data-tab="secret" id="secret-link">Секрет</a>
-    <a href="#/admin" data-tab="admin">Адмінпанель</a>
+    <a href="#/secret" data-tab="secret" id="secret-link" hidden>АвтоГДЗ</a>
+    <a href="#/info" data-tab="info">Інфо</a>
   </nav>
+  <a href="#/settings" data-tab="settings" class="settings-link">⚙️ Налаштування</a>
 </aside>
 <main id="app" aria-live="polite"><p class="muted pad">Завантаження…</p></main>
 <div id="viewer" class="viewer" hidden><img alt=""><button class="close" aria-label="Закрити">×</button></div>

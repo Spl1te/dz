@@ -15,7 +15,7 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #16171b;
     --card: #1f2126;
     --text: #ecebe7;
@@ -30,6 +30,21 @@
     --shadow: none;
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+    --bg: #16171b;
+    --card: #1f2126;
+    --text: #ecebe7;
+    --muted: #9a9ca4;
+    --line: #2e3037;
+    --accent: #8ea6ff;
+    --accent-soft: #262d48;
+    --on-accent: #10142a;
+    --danger: #ff6b6b;
+    --danger-soft: #3a1d20;
+    --danger-bar: rgb(255 107 107 / .2);
+    --shadow: none;
+    color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -481,7 +496,8 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: v
   color: var(--danger); background: var(--danger-soft); border: 1px solid transparent; }
 .debt-line:hover { border-color: var(--danger); }
 .all-done { margin: 0 0 12px; padding: 11px 14px; border-radius: var(--r); font-weight: 700; color: #2b8a3e; background: #ebfbee; }
-@media (prefers-color-scheme: dark) { .all-done { color: #8ce99a; background: #1b3322; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .all-done { color: #8ce99a; background: #1b3322; } }
+:root[data-theme="dark"] .all-done { color: #8ce99a; background: #1b3322; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
 .chips button { border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 999px; padding: 6px 12px;
   font: inherit; font-size: 14px; cursor: pointer; border-left: 4px solid var(--c, var(--line)); }
@@ -530,3 +546,103 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: v
 .gdz-doc h2 { color: var(--accent); display: flex; align-items: center; gap: 8px; }
 .gdz-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); display: inline-block; }
 html { scroll-padding-top: 70px; }
+
+/* режими: адмін — зелений, ГДЗ — синій; увесь сайт ледь помітно підфарбовується */
+:root { --admin: #2b8a3e; --admin-soft: #d3f9d8; }
+:root[data-theme="dark"] { --admin: #69db7c; --admin-soft: #1b3322; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --admin: #69db7c; --admin-soft: #1b3322; } }
+body.mode-admin { background: color-mix(in srgb, var(--admin) 5%, var(--bg)); }
+body.mode-admin .card, body.mode-admin .now, body.mode-admin .gdz-item { background: color-mix(in srgb, var(--admin) 3%, var(--card)); }
+body.mode-gdz:not(.mode-admin) { background: color-mix(in srgb, var(--accent) 6%, var(--bg)); }
+body.mode-gdz:not(.mode-admin) .card, body.mode-gdz:not(.mode-admin) .now { background: color-mix(in srgb, var(--accent) 3%, var(--card)); }
+.admin-badge { color: var(--admin); }
+.admin-badge i, .adm-dot { background: var(--admin); box-shadow: 0 0 0 3px var(--admin-soft); }
+.unlock { border-color: var(--admin) !important; }
+.subtabs button[aria-selected="true"] { border-color: var(--admin); }
+.gdz-tabs button[aria-selected="true"] { border-color: var(--accent); }
+.badge-x { border: 0; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; padding: 0 2px; opacity: .7; }
+.badge-x:hover { opacity: 1; }
+
+/* кнопка адмінпанелі ліворуч від «⋯» */
+.adm-btn { position: absolute; right: 52px; bottom: 6px; height: 36px; min-width: 36px; padding: 0 10px; border-radius: 10px;
+  border: 0; background: var(--admin); color: #fff; font: inherit; font-weight: 800; font-size: 16px; display: grid; place-items: center;
+  text-decoration: none; }
+.adm-btn .full { display: none; }
+.adm-btn:hover { filter: brightness(1.08); }
+.adm-btn.on { box-shadow: 0 0 0 3px var(--admin-soft); }
+.tabs { padding-right: 100px; }
+@media (min-width: 760px) {
+  .adm-btn { position: static; margin-left: auto; font-size: 14px; font-weight: 700; padding: 0 14px; }
+  .adm-btn .full { display: inline; } .adm-btn .short { display: none; }
+  .top .more { margin-left: 4px; }
+  .tabs { padding-right: 0; }
+}
+
+/* меню прокручується на невисоких екранах */
+.drawer { display: flex; flex-direction: column; max-height: 100dvh; }
+.drawer nav { overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; padding-bottom: 8px; }
+.drawer nav a .cnt { float: right; font-size: 13px; color: var(--danger); font-weight: 700; }
+.drawer .settings-link { margin-top: 10px; background: var(--accent-soft); color: var(--accent); text-align: center; }
+.drawer .settings-link.on { box-shadow: none; }
+
+/* АвтоГДЗ: висувна панель знизу на всіх екранах */
+@media (min-width: 700px) { .modal { align-items: flex-end; } .modal-card { border-radius: 18px 18px 0 0; max-width: 760px; } }
+.modal:not([hidden]) .modal-card { animation: sheet-up .26s ease-out; }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .modal:not([hidden]) .modal-card { animation: none; } }
+
+/* відповідь ШІ з формулами */
+.ai-ans .md p { margin: 6px 0; white-space: normal; }
+.ai-ans .md .katex-display { margin: 8px 0; overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+.ai-ans .md .katex { font-size: 1.08em; }
+.ai-ans .md ul, .ai-ans .md ol { margin: 4px 0; padding-left: 22px; }
+
+/* Налаштування */
+.set-list { display: grid; gap: 8px; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--card);
+  border: 1px solid var(--line); border-radius: 12px; }
+.set-row span { font-weight: 600; }
+.set-row small { display: block; color: var(--muted); font-weight: 400; font-size: 13px; }
+.switch { position: relative; width: 48px; height: 28px; flex: none; border-radius: 999px; border: 0; background: var(--line); cursor: pointer; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgb(0 0 0 / .3); }
+.switch[aria-checked="true"] { background: var(--accent); }
+.switch[aria-checked="true"]::after { transform: translateX(20px); }
+.set-btn { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+.set-btn.danger { color: var(--danger); }
+
+/* розсадка: попередження вгорі */
+.seats-warn { margin: 4px 0 14px; padding: 14px 16px; border-radius: var(--r); background: #fff3bf; color: #5c3c00; font-size: 19px; font-weight: 800; line-height: 1.35; }
+:root[data-theme="dark"] .seats-warn { background: #3b2f00; color: #ffe066; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seats-warn { background: #3b2f00; color: #ffe066; } }
+
+/* обід, оголошення, прогноз тривоги */
+.lunch { margin: 0 0 12px; padding: 12px 14px; border-radius: var(--r); background: color-mix(in srgb, #f59f00 16%, var(--card)); border: 1px solid #f59f00; font-weight: 700; }
+.lunch.big { font-size: 24px; text-align: center; letter-spacing: .04em; }
+.lunch small { font-weight: 500; color: var(--muted); font-size: 13px; }
+.ann { margin: 0 0 12px; padding: 12px 14px; border-radius: var(--r); background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--admin); }
+.ann b.t { white-space: pre-line; display: block; }
+.ann .meta { font-size: 12.5px; color: var(--muted); margin-top: 4px; display: flex; justify-content: space-between; gap: 8px; }
+.ann img { display: block; max-width: 100%; border-radius: 10px; margin-top: 8px; }
+.risk { margin: 0 0 12px; padding: 11px 14px; border-radius: var(--r); background: #fff4e6; color: #7a3e00; border: 1px solid #ffa94d; }
+.risk b { display: block; }
+.risk small { display: block; font-size: 12px; opacity: .8; margin-top: 3px; }
+:root[data-theme="dark"] .risk { background: #3a2410; color: #ffc078; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .risk { background: #3a2410; color: #ffc078; } }
+.alert-line small { display: block; font-weight: 500; font-size: 13px; opacity: .9; }
+
+/* відвідування */
+.visits td.v-p { color: #2b8a3e; font-weight: 800; }
+.visits td.v-n { color: var(--danger); font-weight: 800; }
+.visits tfoot td, .visits tfoot th { font-size: 12.5px; color: var(--muted); font-weight: 650; }
+.chan-form textarea { width: 100%; min-height: 120px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; padding: 8px; }
+.drawer .settings-link { display: block; padding: 12px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 16px; }
+.drawer nav a[hidden] { display: none; }
+.admin-badge a, .gdz-badge a { color: inherit; text-decoration: none; }
+.admin-badge, .gdz-badge { display: inline-flex; align-items: center; gap: 6px; }
+.admin-badge[hidden], .gdz-badge[hidden] { display: none; }
+:root { --on-admin: #fff; }
+:root[data-theme="dark"] { --on-admin: #0b2410; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --on-admin: #0b2410; } }
+.adm-btn { color: var(--on-admin); }
+.ai-ans .md .katex { font-size: 1.2em; }
+.ai-ans .md .katex .mfrac { font-size: 1.1em; }

@@ -86,6 +86,7 @@ const linkify = (s) => esc(s).replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]]/g, (u) 
 const sizeStr = (b) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} МБ` : `${Math.max(1, Math.round(b / 1024))} КБ`);
 
 // ---------- дані ----------
+let ANNS = [], LUNCH = {}, VISITS = {}, AIA = {};
 let RAW = [], ALL = [], FILES = [], SCHOOL = { template: {}, weeks: {}, holidays: [], bells: [], teachers: {}, books: {} };
 
 // ---------- група й мова (обирає кожен сам, зберігається в браузері) ----------
@@ -115,6 +116,21 @@ function grpLabel(e) {
   if (kind === "t") return e.grp === 2 ? "хлопці" : "дівчата";
   return `${e.grp} група`;
 }
+
+// ---------- налаштування (у браузері) ----------
+const SET_KEY = "dz-set";
+const SET_DEFAULT = { theme: "auto", hideDebts: true, hideSwitches: false, subjDoneOnly: false, showNow: true, showBdays: true, showClass: true };
+let SET = (() => { try { return { ...SET_DEFAULT, ...(JSON.parse(localStorage.getItem(SET_KEY)) || {}) }; } catch { return { ...SET_DEFAULT }; } })();
+function saveSet(patch) {
+  SET = { ...SET, ...patch };
+  try { localStorage.setItem(SET_KEY, JSON.stringify(SET)); } catch { /* приватний режим */ }
+  applyTheme();
+}
+function applyTheme() {
+  const r = document.documentElement;
+  if (SET.theme === "auto") r.removeAttribute("data-theme"); else r.setAttribute("data-theme", SET.theme);
+}
+applyTheme();
 
 // ---------- виконане (галочки, зберігаються в браузері) ----------
 const DONE_KEY = "dz-done";
@@ -287,12 +303,21 @@ function donePage() {
   return `<h1>Виконане</h1><p class="sub">ДЗ, які ти позначив галочкою. Зніми галочку — і воно повернеться на головну.</p>
     ${list.length ? list.map((e) => card(e)).join("") : `<div class="empty">Поки нічого не позначено.</div>`}`;
 }
+function aiSection() {
+  if (!AIA || !AIA.checked) return "";
+  const tr = AIA.track || {};
+  const acc = tr.warned ? `попереджень ${tr.warned}, справдилось ${tr.hits}${tr.accuracy !== null && tr.accuracy !== undefined ? ` (${tr.accuracy}%)` : ""}, хибних ${tr.false}, пропущених тривог ${tr.missed}` : "статистика ще збирається";
+  return `<section class="risk" style="margin-top:12px"><b>🤖 ШІ-прогноз (неофіційно)</b>
+    ${aiFresh() && !AIA.stale ? `Ризик тривоги: ${AIA.risk}/10${AIA.threat ? ` · загроза: ${esc(AIA.threat)}` : ""}${AIA.end_min && ALERTS.now ? ` · ще ~${AIA.end_min} хв` : ""}<br>${esc(AIA.summary || "")}` : "Нічого нового про Київ."}
+    <small>Аналізує відкриті канали моніторингу кожні 3 хв. За 14 днів: ${acc}. Орієнтуйся на сирену й офіційні застосунки.</small></section>`;
+}
 function alertsPage() {
   const open = ALERTS.list.find((a) => !a.end);
   let status;
   if (ALERTS.now === null) status = `<section class="alert-now">Сервер ще не отримав дані про тривоги. Зачекай хвилинку.</section>`;
   else if (ALERTS.now) status = `<section class="alert-now on" role="status"><b>🚨 Зараз повітряна тривога в Києві</b>${open ? `<span>з ${hhmm(open.start)} · триває ${durStr(Date.now() - ts(open.start))}</span>` : ""}</section>`;
   else status = `<section class="alert-now off" role="status"><b>Тривоги немає</b><span>перевірено о ${ALERTS.checked ? hhmm(ALERTS.checked) : "—"}</span></section>`;
+  status += aiSection();
   const byDay = {};
   for (const a of ALERTS.list) (byDay[a.start.slice(0, 10)] ||= []).push(a);
   const days = Object.keys(byDay).sort().reverse();
@@ -378,14 +403,51 @@ function hwCount(list) {
   const hw = list.filter((e) => !e.alert).length, al = list.length - hw;
   return (hw ? ` · ${hw} ${plural(hw)}` : "") + (al ? ` · 🚨 ${al} ${al === 1 ? "урок під тривогою" : "уроки під тривогою"}` : "");
 }
+// ---------- тривога (офіційна + ШІ-прогноз), обід, оголошення ----------
+const aiFresh = () => AIA && AIA.checked && (Date.now() - new Date(AIA.checked).getTime()) < 20 * 60 * 1000;
+function alertBanner() {
+  if (ALERTS.now) {
+    const t = aiFresh() && AIA.threat ? ` · загроза: ${esc(AIA.threat)}` : "";
+    const end = aiFresh() && AIA.end_min ? `за оцінкою ШІ ще ~${AIA.end_min} хв · ` : "";
+    return `<a class="alert-line" href="#/alerts">🚨 Повітряна тривога в Києві${t}
+      ${t || end ? `<small>${end}тип і тривалість — неофіційно, ШІ за каналами моніторингу</small>` : ""}</a>`;
+  }
+  if (aiFresh() && !AIA.stale && AIA.risk >= 5) {
+    return `<a class="risk" href="#/alerts" style="text-decoration:none;display:block">
+      <b>⚠️ Можлива тривога · впевненість ${AIA.risk}/10${AIA.threat ? ` · ${esc(AIA.threat)}` : ""}${AIA.eta_min ? ` · ~через ${AIA.eta_min} хв` : ""}</b>
+      ${esc(AIA.summary || "")}<small>Неофіційно: ШІ за каналами моніторингу. Орієнтуйся на сирену й офіційні застосунки.</small></a>`;
+  }
+  return "";
+}
+function lunchBanner() {
+  const l = LUNCH[today()];
+  if (!l || !SCHOOL.bells.length) return "";
+  const after = bell(l.after), next = bell(l.after + 1);
+  if (!after) return "";
+  const sec = nowSec(), endL = toMin(after[1]) * 60, startL = toMin(after[0]) * 60;
+  const beforeStart = bell(l.after - 1) ? toMin(bell(l.after - 1)[1]) * 60 : startL - 600;
+  const unoff = l.official ? "" : ` <small>(не офіційно)</small>`;
+  if (sec >= endL && sec < (next ? toMin(next[0]) * 60 : endL + 1200)) return `<div class="lunch big">🍽 ОБІД${unoff}</div>`;
+  if (sec >= startL && sec < endL) return `<div class="lunch">🍽 ОБІД після цього уроку (${l.after}-го)${unoff}</div>`;
+  if (sec >= beforeStart && sec < startL) return `<div class="lunch">🍽 ОБІД через урок — після ${l.after}-го${unoff}</div>`;
+  return "";
+}
+function annBlock() {
+  const since = Date.now() - 3 * 86400000;
+  const list = ANNS.filter((a) => new Date(a.at).getTime() >= since).slice(-3).reverse();
+  return list.map((a) => `<div class="ann"><b class="t">📢 ${esc(a.text)}</b>${a.photo ? `<button type="button" class="crop" data-img="${esc(a.photo)}" style="padding:0;border:0;background:none"><img src="${esc(a.photo)}" alt="Фото до оголошення" loading="lazy"></button>` : ""}
+    <div class="meta"><span>Від класної керівниці · ${short(a.at.slice(0, 10))} ${a.at.slice(11, 16)}</span>${ADMIN_TOKEN ? `<button type="button" class="badge-x" data-anndel="${esc(a.id)}" aria-label="Видалити оголошення">🗑</button>` : ""}</div></div>`).join("");
+}
+
 function home() {
   const mine = ALL.filter((e) => isMine(e) && !isDone(e));
   const due = byDue(mine);
   const t = today();
   const days = Object.keys(due).filter((d) => d > t).sort();
-  let html = (ALERTS.now ? `<a class="alert-line" href="#/alerts">🚨 Повітряна тривога в Києві</a>` : "") + nowCard() + bdayWidget();
+  let html = alertBanner() + (SET.showClass ? lunchBanner() : "") + (SET.showNow ? nowCard() : "") +
+    (SET.showClass ? annBlock() : "") + (SET.showBdays ? bdayWidget() : "");
   const debtN = debts().length;
-  if (debtN) html += `<a class="debt-line" href="#/debts">⚠️ Боргів: ${debtN} — переглянути ›</a>`;
+  if (debtN && !SET.hideDebts) html += `<a class="debt-line" href="#/debts">⚠️ Боргів: ${debtN} — переглянути ›</a>`;
   const tmr = nextSchoolDay(t), tmrAll = tmr ? RAW.filter((e) => e.due === tmr && isMine(e)) : [];
   if (tmrAll.length && tmrAll.every(isDone)) html += `<div class="all-done">✅ ДЗ ${tmr === iso(addDays(parse(t), 1)) ? "на завтра" : `на ${WD[parse(tmr).getDay()]}`} виконано</div>`;
   if (!days.length) {
@@ -487,7 +549,7 @@ function weekPage() {
       ? `<div class="week-day">${h}<button type="button" class="moved" data-top>↑ Показано зверху</button></div>`
       : `<div class="week-day">${h}${dayTable(s, false)}</div>`;
   }).join("");
-  return `<div class="prefs">${prefSwitches(pref())}</div>
+  return `${SET.hideSwitches ? "" : `<div class="prefs">${prefSwitches(pref())}</div>`}
     ${focusCard(focus)}
     <div class="cal-nav"><button data-week="-1" aria-label="Попередній тиждень">‹</button>
       <div class="week-t"><h1>${title}</h1><span>${short(iso(mon))} – ${short(iso(fri))}${type ? ` · тиждень ${type === "A" ? "А" : "Б"}` : ""}</span></div>
@@ -633,6 +695,8 @@ function subject(tag) {
       if (!list.length) return `<h2>ДЗ</h2><div class="empty">З цього предмета ще нічого не задавали.</div>`;
       const open = list.filter((e) => e.alert || !isDone(e)), done = list.filter((e) => !e.alert && isDone(e));
       const cards = (l) => l.map((e) => card(e, { showSubj: e.tag !== tag })).join("");
+      if (SET.subjDoneOnly) return `<h2>Виконані <span class="muted">· ${done.length}</span></h2>${done.length ? cards(done) : `<div class="empty small">Ще нічого не позначено.</div>`}
+        <p class="muted small-note">Показано лише виконане — це змінюється в ⚙️ Налаштуваннях.</p>`;
       return `<h2>Невиконані <span class="muted">· ${open.length}</span></h2>${open.length ? cards(open) : `<div class="empty small">Усе виконано 🎉</div>`}
         <h2>Виконані <span class="muted">· ${done.length}</span></h2>${done.length ? cards(done) : `<div class="empty small">Ще нічого не позначено.</div>`}`;
     })()}`;
@@ -694,7 +758,9 @@ function lockForm(id, title, hint) {
       <p class="err" id="${id}-err" role="alert"></p></form>`;
 }
 function adminPage() {
-  if (!ADMIN_TOKEN) return lockForm("lock", "Адмінпанель", "Тільки для адмінів. Введи пароль.");
+  if (!ADMIN_TOKEN) return lockForm("lock", "Адмінпанель", GDZ_TOKEN
+    ? `Зараз увімкнено АвтоГДЗ${AI_TOKEN ? " + ШІ" : ""}. Тут можна ввести інший пароль.`
+    : "Введи пароль — адмінпанель або режим АвтоГДЗ.");
   if (!ADM.data) { loadAdmin(); return `<h1>Адмінпанель</h1><p class="muted pad">Завантаження…</p>`; }
   if (ADM.data.error) return `<h1>Адмінпанель</h1><div class="empty">${esc(ADM.data.error)}</div>`;
   const tabs = [["add", "＋ Додати ДЗ"], ["visitors", "Відвідувачі й блок"], ["deleted", `Видалені ДЗ${ADM.data.deleted.length ? ` · ${ADM.data.deleted.length}` : ""}`], ["site", "Сайт"]];
@@ -726,12 +792,17 @@ function adminPage() {
         <button type="submit" data-on="1">⏱ Увімкнути</button><button type="submit" data-on="0">Вимкнути</button></form>
       <p class="muted small-note">${soon.length ? "Скорочені дні: " + soon.map((d) => `${WD_TINY[parse(d).getDay()]} ${short(d)}`).join(", ") : "Скорочених днів не заплановано."}
         З Telegram: /short, /short 12.11, /short off 12.11.</p>
+      <h2>ШІ-прогноз тривог: канали</h2>
+      <form id="chanform" class="chan-form"><textarea id="chan-list" aria-label="Канали" placeholder="kpszsu\nwar_monitor">${esc((AIA.channels || []).join("\n"))}</textarea>
+        <button type="submit" class="set-btn">Зберегти канали</button></form>
+      <p class="muted small-note">По одному на рядок: @назва або посилання t.me/назва. Лише відкриті канали (з веб-версією t.me/s/назва).</p>
       <h2>Перезапуск</h2>
       <p>Перезапуск займає ~5–10 секунд: сайт сам перезавантажить сторінку, коли знову запрацює.</p>
       <button type="button" class="btn-danger" data-restart>🔄 Перезапустити сайт</button>
       <p class="muted small-note">Те саме з Telegram: /restartsite. Ще є /stopsite, /startsite, /restartbot, /fullrestart.</p>`;
   }
   return `<h1>Адмінпанель</h1><div class="unlock">🔓 Адмін-режим увімкнено: на картках ДЗ є ✏️ і 🗑. Інструкції — у вкладці «Інфо».
+      <button type="button" data-admgdz>${GDZ_TOKEN ? "ГДЗ ✓" : "ГДЗ"}</button>
       <button type="button" data-lockout>Вийти</button></div>${sub}<div class="admin-body">${body}</div>`;
 }
 
@@ -781,11 +852,11 @@ function seatsPage() {
     }
   }
   const table = pairs.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join("");
-  return `<h1>Розсадка</h1><p class="sub">${cols} стовпчики × ${rows} рядів, парти по двоє.</p>
+  return `<h1>Розсадка</h1><div class="seats-warn">⚠️ Місця не збігаються з реальністю — це тільки схема, хто з ким сидить.</div><p class="sub">${cols} стовпчики × ${rows} рядів, парти по двоє.</p>
     <div class="board">Дошка</div>
     <div class="seats" style="--cols:${cols}">${grid}</div>
     <h2>Хто з ким сидить</h2><table class="pairs"><thead><tr><th>Учень</th><th>Сидить з</th></tr></thead><tbody>${table}</tbody></table>
-    <p class="muted small-note seats-note">Місця не точні.</p>`;
+`;
 }
 const MON_GEN = ["січня", "лютого", "березня", "квітня", "травня", "червня", "липня", "серпня", "вересня", "жовтня", "листопада", "грудня"];
 // Найближча дата ДН (цього або наступного року) і скільки днів до неї
@@ -831,6 +902,63 @@ function weekendBdays() {
   return out.reverse();
 }
 
+// ---------- відповідь ШІ: Markdown + формули (KaTeX, завантажується лише коли треба) ----------
+let KATEX = null;
+function loadKatex() {
+  if (window.katex) return Promise.resolve();
+  if (!KATEX) {
+    KATEX = new Promise((ok, fail) => {
+      const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "vendor/katex/katex.min.css"; document.head.appendChild(css);
+      const js = document.createElement("script"); js.src = "vendor/katex/katex.min.js"; js.onload = ok; js.onerror = fail; document.head.appendChild(js);
+    });
+  }
+  return KATEX;
+}
+function texToHtml(tex, display) {
+  if (!window.katex) { loadKatex().then(() => GDZ.open && renderModal()).catch(() => {}); return `<code>${esc(tex)}</code>`; }
+  try { return window.katex.renderToString(tex, { displayMode: display, throwOnError: false, strict: "ignore" }); }
+  catch { return `<code>${esc(tex)}</code>`; }
+}
+function mdMath(src) {
+  const parts = [];
+  // формули вирізаємо до екранування, щоб не зіпсувати \frac, < і т. д.
+  let t = String(src || "").replace(/\$\$([\s\S]+?)\$\$/g, (_, x) => { parts.push(texToHtml(x.trim(), true)); return `\u0000${parts.length - 1}\u0000`; })
+    .replace(/\\\[([\s\S]+?)\\\]/g, (_, x) => { parts.push(texToHtml(x.trim(), true)); return `\u0000${parts.length - 1}\u0000`; })
+    .replace(/\$([^$\n]+?)\$/g, (_, x) => { parts.push(texToHtml(x.trim(), false)); return `\u0000${parts.length - 1}\u0000`; })
+    .replace(/\\\(([\s\S]+?)\\\)/g, (_, x) => { parts.push(texToHtml(x.trim(), false)); return `\u0000${parts.length - 1}\u0000`; });
+  t = esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+  const html = t.split(/\n{2,}/).map((block) => {
+    const lines = block.split("\n");
+    if (lines.every((l) => /^\s*[-•]\s+/.test(l))) return `<ul>${lines.map((l) => `<li>${l.replace(/^\s*[-•]\s+/, "")}</li>`).join("")}</ul>`;
+    return `<p>${lines.join("<br>")}</p>`;
+  }).join("");
+  return html.replace(/\u0000(\d+)\u0000/g, (_, i) => parts[Number(i)]);
+}
+
+// ---------- Налаштування ----------
+function settingsPage() {
+  const sw = (key, title, hint) => `<div class="set-row"><span>${title}${hint ? `<small>${hint}</small>` : ""}</span>
+    <button type="button" class="switch" role="switch" aria-checked="${!!SET[key]}" aria-label="${title}" data-set="${key}"></button></div>`;
+  const themeSeg = `<div class="seg" role="group" aria-label="Тема">${[["auto", "Авто"], ["light", "Світла"], ["dark", "Темна"]]
+    .map(([v, t]) => `<button type="button" data-theme-set="${v}" aria-pressed="${SET.theme === v}">${t}</button>`).join("")}</div>`;
+  const modes = [ADMIN_TOKEN && "адмін", GDZ_TOKEN && `АвтоГДЗ${AI_TOKEN ? " + ШІ" : ""}`].filter(Boolean);
+  return `<h1>Налаштування</h1><p class="sub">Зберігаються в цьому браузері й діють одразу.</p>
+    <h2>Мій розклад</h2><div class="prefs">${prefSwitches(pref())}</div>
+    <h2>Вигляд</h2><div class="set-list"><div class="set-row"><span>Тема</span>${themeSeg}</div></div>
+    <h2>Головна</h2><div class="set-list">
+      ${sw("hideDebts", "Ховати борги на головній", "Самі борги — у ⋯ → Борги")}
+      ${sw("showNow", "Картка «Зараз»", "Який урок іде, скільки до перерви")}
+      ${sw("showBdays", "Дні народження")}
+      ${sw("showClass", "Обід і оголошення класної керівниці")}</div>
+    <h2>Розділи</h2><div class="set-list">
+      ${sw("hideSwitches", "Сховати перемикачі в «Розкладі»", "Вони все одно є тут, у Налаштуваннях")}
+      ${sw("subjDoneOnly", "У «Предметах» лише виконане")}</div>
+    <h2>Інше</h2><div class="set-list">
+      <div class="set-row"><span>Галочки «виконано»<small>Позначено: ${DONE.size}</small></span><button type="button" class="set-btn danger" data-resetdone>Скинути</button></div>
+      <div class="set-row"><span>Режим<small>${modes.length ? "Увімкнено: " + modes.join(", ") : "Звичайний"}</small></span>
+        ${modes.length ? `<button type="button" class="set-btn" data-allout>Вийти</button>` : `<a class="set-btn" href="#/admin" style="text-decoration:none">Увійти</a>`}</div></div>`;
+}
+
 // ---------- Борги ----------
 // ДЗ, у якого минув термін і яке не позначене виконаним. Рахуються лише ДЗ з терміном від DEBT_FROM.
 const DEBT_FROM = "2026-11-09";
@@ -864,18 +992,27 @@ function visitsPage(day) {
   const days = [0, 1, 2, 3, 4].map((i) => iso(addDays(parse(visitsMon), i)));
   const students = [...(CLASS.students || [])].sort((a, b) => a.localeCompare(b, "uk"));
   const head = days.map((d) => `<th class="${d === sel ? "sel" : ""}${plan(d).length ? "" : " off"}">${WD_SHORT[(parse(d).getDay() + 6) % 7]}<br><span>${short(d)}</span></th>`).join("");
-  const rows = students.map((n) => `<tr><th scope="row">${esc(n)}</th>${days.map((d) => `<td class="${d === sel ? "sel" : ""}${plan(d).length ? "" : " off"}">·</td>`).join("")}</tr>`).join("");
+  const mark = (d, n) => (VISITS[d] || {})[n];
+  const cell = (d, n) => { const v = mark(d, n); return `<td class="${d === sel ? "sel " : ""}${plan(d).length ? "" : "off "}${v === "+" ? "v-p" : v === "Н" ? "v-n" : ""}">${v === "+" ? "+" : v === "Н" ? "Н" : "·"}</td>`; };
+  const rows = students.map((n) => `<tr><th scope="row">${esc(n)}</th>${days.map((d) => cell(d, n)).join("")}</tr>`).join("");
+  const foot = days.some((d) => VISITS[d]) ? `<tfoot><tr><th>Присутні / відсутні</th>${days.map((d) => {
+    const v = Object.values(VISITS[d] || {});
+    return `<td>${v.length ? `${v.filter((x) => x === "+").length}/${v.filter((x) => x === "Н").length}` : ""}</td>`;
+  }).join("")}</tr></tfoot>` : "";
+  const any = Object.keys(VISITS).length;
   return `<h1>Відвідування</h1>
-    <div class="dev-banner">🚧 У розробці — відмітки, хто був у школі, поки не ведуться.</div>
+    ${any ? `<p class="sub">+ — був, Н — не було, · — невідомо. Дані — з журналу, який надсилає класна керівниця.</p>`
+      : `<div class="dev-banner">Відміток ще немає — зʼявляться, коли класна керівниця надішле фото журналу.</div>`}
     <div class="cal-nav"><button data-vweek="-1" aria-label="Попередній тиждень">‹</button>
       <h2>${short(days[0])} – ${short(days[4])}</h2><button data-vweek="1" aria-label="Наступний тиждень">›</button></div>
     <div class="visits-wrap"><table class="visits"><thead><tr><th>Учень</th>${head}</tr></thead><tbody>${rows ||
-      `<tr><td colspan="6">Список учнів ще не додано.</td></tr>`}</tbody></table></div>`;
+      `<tr><td colspan="6">Список учнів ще не додано.</td></tr>`}</tbody>${foot}</table></div>`;
 }
 
 // ---------- «Секрет» → АвтоГДЗ ----------
 // Ключ АвтоГДЗ живе до закриття вкладки, ключ «Від ШІ» — на пристрої (пароль питається один раз)
-const store = (kind) => (kind === "ai" ? localStorage : sessionStorage);
+const store = () => sessionStorage; // режими (ГДЗ, ШІ) живуть до закриття вкладки
+try { localStorage.removeItem("dz-ai"); } catch { /* старий ключ «Від ШІ» більше не потрібен */ }
 const keyGet = (kind, name) => { try { return store(kind).getItem(name); } catch { return null; } };
 const keySet = (kind, name, v) => { try { v ? store(kind).setItem(name, v) : store(kind).removeItem(name); } catch { /* приватний режим */ } };
 let GDZ_TOKEN = keyGet("gdz", "dz-gdz");
@@ -900,7 +1037,7 @@ function gdzRow(e) {
 // невиконане вгорі, всередині — за важкістю
 const gdzSort = (l) => [...sortSubj(l.filter((e) => !isDone(e))), ...sortSubj(l.filter(isDone))];
 function secretPage() {
-  if (!GDZ_TOKEN) return lockForm("lock2", "Секрет", "Введи пароль, щоб побачити вміст.");
+  if (!GDZ_TOKEN) return `<h1>АвтоГДЗ</h1><div class="empty">Щоб відкрити АвтоГДЗ, введи пароль у <a href="#/admin">Адмінпанелі</a> (зелена кнопка «A» вгорі).</div>`;
   const tabs = `<div class="subtabs gdz-tabs" role="tablist">
     <button type="button" role="tab" data-gtab="tmr" aria-selected="${GDZ_TAB === "tmr"}">На завтра</button>
     <button type="button" role="tab" data-gtab="all" aria-selected="${GDZ_TAB === "all"}">Усі ДЗ</button></div>`;
@@ -916,7 +1053,8 @@ function secretPage() {
     body = `<p class="sub">ДЗ на ${d ? `${whenDay(d)}, ${short(d)}` : "найближчий день"}. Натисни на завдання, галочка — виконано.</p>
       ${gdzSort(list).map(gdzRow).join("") || `<div class="empty">На ${d ? whenDay(d) : "завтра"} ДЗ ще не задали.</div>`}`;
   }
-  return `<h1 class="gdz-h">АвтоГДЗ</h1>${tabs}${body}`;
+  return `<h1 class="gdz-h">АвтоГДЗ${AI_TOKEN ? ` <small class="muted">+ ШІ</small>` : ""}</h1>${tabs}${body}
+    <p><button type="button" class="set-btn" data-gdzout>Вийти з АвтоГДЗ</button></p>`;
 }
 
 function gdzModalHtml() {
@@ -949,12 +1087,12 @@ function gdzModalHtml() {
   } else if (a && a.status === "done") {
     const r = a.result;
     ai = `<div class="ai-res"><h3>Від ШІ</h3>${r.answers.map((t, i) =>
-      `<div class="ai-ans">${r.creative ? `<b>Варіант ${i + 1}</b>` : ""}<p>${esc(t)}</p></div>`).join("")}
+      `<div class="ai-ans">${r.creative ? `<b>Варіант ${i + 1}</b>` : ""}<div class="md">${mdMath(t)}</div></div>`).join("")}
       ${r.note ? `<p class="muted small-note">${esc(r.note)}</p>` : ""}
       <p class="muted small-note">ШІ може помилятись — перевір.</p></div>`;
   } else if (a && a.status === "error") ai = `<p class="err">${esc(a.error)}</p>`;
-  const aiBtn = !GDZ.aiLogin && !(a && ["queue", "run", "starting", "done"].includes(a.status))
-    ? `<button type="button" class="btn-ai" data-ai>✨ Від ШІ${AI_TOKEN ? "" : " (доступ)"}</button>` : "";
+  const aiBtn = AI_TOKEN && !(a && ["queue", "run", "starting", "done"].includes(a.status))
+    ? `<button type="button" class="btn-ai" data-ai>✨ Від ШІ</button>` : "";
   const done = isDone(e);
   return `<div class="modal-card" role="dialog" aria-modal="true" aria-label="АвтоГДЗ: ${esc(s.name)}">
     <div class="modal-h" style="--c:${s.color}"><b>${esc(s.name)}</b><button type="button" class="close" data-gdz-close aria-label="Закрити">×</button></div>
@@ -964,7 +1102,7 @@ function gdzModalHtml() {
     ${has ? (f ? "" : `<div class="gdz-solve"><button type="button" class="btn-solve" data-solve>Розвʼязати</button></div>`)
       : `<p class="muted gdz-dev">Повне АвтоГДЗ до цього предмету у розробці.</p>`}
     ${found}
-    <div class="gdz-ai">${aiBtn}${ai}</div>
+    ${aiBtn || ai ? `<div class="gdz-ai">${aiBtn}${ai}</div>` : ""}
   </div>`;
 }
 const modal = document.createElement("div");
@@ -985,11 +1123,14 @@ async function gdzApi(action, body) {
     body: JSON.stringify({ ...body, gtoken: GDZ_TOKEN, atoken: AI_TOKEN }) });
   const j = await r.json().catch(() => ({}));
   if (r.status === 401 && j.relogin) { setGdz(null); closeModal(); render(); throw new Error("Доступ до АвтоГДЗ закінчився — введи пароль ще раз."); }
-  if (r.status === 401 && j.ai_login) { AI_TOKEN = null; keySet("ai", "dz-ai", null); GDZ.aiLogin = true; renderModal(); throw new Error(""); }
+  if (r.status === 401 && j.ai_login) { AI_TOKEN = null; keySet("ai", "dz-ai", null); renderModal(); throw new Error("Режим ШІ закінчився — увійди ще раз паролем ГДЗ+ШІ."); }
   if (!j.ok) throw new Error(j.error || "Помилка");
   return j;
 }
-function setGdz(t) { GDZ_TOKEN = t; keySet("gdz", "dz-gdz", t); }
+function setGdz(t, ai = null) {
+  GDZ_TOKEN = t; keySet("gdz", "dz-gdz", t);
+  AI_TOKEN = t ? ai : null; keySet("ai", "dz-ai", AI_TOKEN);
+}
 function aiPoll(start) {
   const id = GDZ.open;
   clearInterval(GDZ.poll);
@@ -1021,7 +1162,7 @@ modal.addEventListener("click", async (ev) => {
     renderModal(); return;
   }
   if (ev.target.closest("[data-ai]")) {
-    if (!AI_TOKEN) { GDZ.aiLogin = true; renderModal(); document.getElementById("lock3-pw")?.focus(); return; }
+    if (!AI_TOKEN) return;
     GDZ.ai = { status: "starting" }; renderModal(); aiPoll(true);
   }
 });
@@ -1043,7 +1184,7 @@ function infoPage() {
   <section class="doc">
     <nav class="doc-toc" aria-label="Зміст">
       <a href="#i-what">Що це</a><a href="#i-start">Перше відкриття</a><a href="#i-home">Головна</a><a href="#i-cal">Календар</a>
-      <a href="#i-week">Розклад</a><a href="#i-menu">Меню ⋯</a><a href="#i-check">Галочки й борги</a><a href="#i-colors">Кольори</a>
+      <a href="#i-week">Розклад</a><a href="#i-menu">Меню ⋯</a><a href="#i-set">Налаштування</a><a href="#i-class">Обід</a><a href="#i-check">Галочки й борги</a><a href="#i-colors">Кольори</a>
       <a href="#i-groups">Групи</a><a href="#i-alerts">Тривоги</a><a href="#i-tips">Дрібниці</a>
     </nav>
 
@@ -1065,7 +1206,7 @@ function infoPage() {
           <li><b>Друга іноземна</b> — німецька чи іспанська.</li>
           <li><b>Технології</b> — «Дівч.» (Кисельова, каб. 326) чи «Хлопч.» (Резніченко).</li>
         </ul></li>
-      <li>Змінити вибір будь-коли — перемикачами вгорі вкладки <b>«Розклад»</b>. Діє одразу на весь сайт.</li>
+      <li>Змінити вибір будь-коли — у <b>⚙️ Налаштуваннях</b> (внизу меню ⋯) або перемикачами вгорі «Розкладу». Діє одразу на весь сайт.</li>
       <li>Вибір зберігається лише в цьому браузері. На іншому телефоні чи комп'ютері сайт спитає ще раз.</li>
     </ul>
 
@@ -1108,21 +1249,29 @@ function infoPage() {
     <h2 id="i-menu">Меню ⋯</h2>
     <ul>
       <li><b>Предмети</b> — плитки за важкістю (кількість ДЗ, 📖 — є підручник). Сторінка предмета: учитель, 5 найближчих уроків,
-        підручник(и), файли, і ДЗ двома блоками — <b>Невиконані</b> та <b>Виконані</b>. У Історії України видно ще й ДЗ з громадянської освіти.</li>
-      <li><b>Файли</b> — файли й фото від учителів (з датою, коли додано; фото — з мініатюрою) і всі підручники PDF.
-        В англійської два: Wider World 4 Teacher's Book (зі сторінками підручника) і Workbook.</li>
+        підручник(и), файли, і ДЗ двома блоками — <b>Невиконані</b> та <b>Виконані</b>.</li>
       <li><b>Виконане</b> — усе, що ти позначив; там галочку можна зняти.</li>
-      <li><b>Борги</b> — прострочене невиконане ДЗ, з фільтром за предметом.</li>
-      <li><b>Тривоги</b> — тривоги в Києві: коли почались і скінчились, скільки тривали, які уроки й перерви зачепили.</li>
-      <li><b>Інфо</b> — ця сторінка.</li>
-      <li><b>Додаткове</b>:
-        <ul>
-          <li><b>Розсадка</b> — схема класу (дошка вгорі, 3 стовпчики парт) і таблиця «хто з ким». Місця не точні.</li>
-          <li><b>Дні народження</b> — усі ДН від найближчого, по місяцях.</li>
-          <li><b>Відвідування</b> — таблиця учнів по днях. Поки у розробці: відмітки ще не ведуться.</li>
-          <li><b>Секрет</b> — закритий розділ з паролем.</li>
-          <li><b>Адмінпанель</b> — тільки для адмінів.</li>
-        </ul></li>
+      <li><b>Борги</b> (поруч — кількість) — прострочене невиконане ДЗ, з фільтром за предметом.</li>
+      <li><b>Відвідування</b> — хто був у школі по днях (+ був, Н не було, · невідомо), з журналу класної керівниці.</li>
+      <li><b>Додаткове</b>: Тривоги (з ШІ-прогнозом), Файли (від учителів і підручники), Розсадка (лише схема!), Дні народження,
+        АвтоГДЗ (якщо увімкнено), Інфо.</li>
+      <li><b>⚙️ Налаштування</b> — внизу меню (див. нижче).</li>
+      <li>Зелена кнопка <b>«A»</b> вгорі (на компʼютері — «Адмінпанель») — вхід за паролем: для адмінів або в режим АвтоГДЗ.</li>
+    </ul>
+
+    <h2 id="i-set">Налаштування</h2>
+    <ul>
+      <li>Українська/група, мова, технології; тема — авто, світла або темна.</li>
+      <li>Головна: ховати борги (за замовчуванням сховані), картка «Зараз», дні народження, обід і оголошення.</li>
+      <li>Сховати перемикачі в «Розкладі»; у «Предметах» показувати лише виконане.</li>
+      <li>Скинути всі галочки; вийти з режиму (адмін / АвтоГДЗ).</li>
+    </ul>
+
+    <h2 id="i-class">Обід і оголошення</h2>
+    <ul>
+      <li>Класна керівниця пише боту, після якого уроку обід. Якщо не написала — вважається, що після 3-го, з позначкою «не офіційно».</li>
+      <li>На головній: «🍽 ОБІД через урок», «ОБІД після цього уроку», а на самій перерві — велике «🍽 ОБІД». У канал бот теж пише «ОБІД».</li>
+      <li>Оголошення класної керівниці — на головній (останні 3 дні) і жирним у каналі.</li>
     </ul>
 
     <h2 id="i-check">Галочки, виконане й борги</h2>
@@ -1157,6 +1306,10 @@ function infoPage() {
       <li>Якщо тривога йшла хоча б останні 10 хв уроку і ДЗ з нього не задали — на місці ДЗ з'являється плашка <b>«Була тривога!»</b>
         (до наступного уроку цього предмета). Якщо ДЗ потім таки надішлють — плашка зміниться на справжнє ДЗ.</li>
       <li>Поки ноутбук-сервер вимкнений, тривоги не записуються.</li>
+      <li><b>🤖 ШІ-прогноз</b> (неофіційно): кожні 3 хв сайт читає відкриті канали моніторингу. Якщо щось летить у бік Києва —
+        на головній «⚠️ Можлива тривога» з упевненістю від 1 до 10. Під час тривоги — тип загрози (балістика, ракети, шахеди…),
+        якщо канали про це пишуть, і орієнтовно скільки ще. ШІ запамʼятовує свої помилки й враховує їх; його точність — у «Тривогах».</li>
+      <li>Прогноз може помилятись. Головне — сирена й офіційні застосунки (Повітряна тривога).</li>
     </ul>
 
     <h2 id="i-tips">Дрібниці</h2>
@@ -1175,17 +1328,17 @@ function infoPage() {
   <section class="doc gdz-doc">
     <h2><span class="gdz-dot" aria-hidden="true"></span> АвтоГДЗ</h2>
     <ul>
-      <li>Режим вмикається паролем «Секрету». Поки він діє, у шапці синє «ГДЗ», а пункт меню зветься «АвтоГДЗ».
-        Діє до закриття вкладки (оновлення сторінки не скидає).</li>
+      <li>Режим вмикається паролем у зеленій кнопці «A» (Адмінпанель): один пароль — АвтоГДЗ, інший — АвтоГДЗ + ШІ.
+        Поки діє — у шапці синє «ГДЗ», сайт трохи синіший, у меню є «АвтоГДЗ». До закриття вкладки; ✕ біля «ГДЗ» — вийти.</li>
       <li>Дві вкладки: <b>«На завтра»</b> — ДЗ на найближчий навчальний день, і <b>«Усі ДЗ»</b> — усе твоє ДЗ за днями (майбутнє вгорі, потім минуле).</li>
       <li>Галочка зліва — позначити виконаним (те саме, що на головній). Виконане опускається вниз і викреслюється.</li>
       <li>Натисни на ДЗ — відкриється вікно з текстом, вирізками з підручника й кнопкою <b>«Розв'язати»</b>.
         Сайт шукає готову відповідь на gdzonline.net і shkola.in.ua — для <b>алгебри, геометрії, української мови й історії України</b>.
-        Для інших предметів — «Повне АвтоГДЗ до цього предмету у розробці».</li>
+        Для інших предметів — «Повне АвтоГДЗ до цього предмету у розробці». Вікно виїжджає знизу.</li>
       <li>Що шукається — номери з ДЗ: «№ 245, 247», «№245–247», «с. 92 впр. 1», «ст. 45 № 3», «§ 5».
         Якщо є і сторінка, і завдання — шукається саме це завдання на цій сторінці. Без номерів шукати нема чого.</li>
       <li>Під кожною відповіддю — посилання на джерело. Не знайшлось — є посилання на весь збірник.</li>
-      <li><b>✨ Від ШІ</b> — розвʼязок від штучного інтелекту (Claude). Перший раз потрібен окремий пароль — далі на цьому пристрої не питає.
+      <li><b>✨ Від ШІ</b> (лише в режимі «+ ШІ») — розвʼязок від штучного інтелекту (Claude) з нормальними дробами, степенями й поясненнями.
         ШІ бачить фото завдання з підручника (для англійської — усю сторінку) і, якщо є, ГДЗ, щоб звіритись.
         Творчі завдання (твір, речення, лист) — два різні варіанти на вибір. Займає до 1–2 хв.</li>
       <li>Кожне ДЗ ШІ розвʼязує один раз — далі всі бачать готову відповідь одразу. Нових розвʼязків — не більше 30 на день на всіх.</li>
@@ -1208,6 +1361,15 @@ function infoPage() {
       <li><b>Сайт → Скорочені уроки</b> — вибери день і «Увімкнути»: таймер, розклад і тривоги рахуються за скороченими дзвінками.
         З Telegram: <code>/short</code>, <code>/short 12.11</code>, <code>/short off 12.11</code>.</li>
       <li><b>Сайт → Перезапустити</b> — якщо сайт поводиться дивно. Займає ~10 с.</li>
+      <li><b>Вхід і режими</b>: кнопка «A» → пароль. Адмін — зелений відтінок сайту й «Адмін-доступ!»; кнопка «ГДЗ» в адмінпанелі
+        вмикає повний АвтоГДЗ (з ШІ). ✕ біля бейджа — вийти.</li>
+      <li><b>ШІ-прогноз тривог</b>: канали — в адмінпанелі, «Сайт». Щоб попередження йшли в Telegram-канал, додай туди бота адміном —
+        бот сам запамʼятає канал і напише тобі.</li>
+      <li><b>Режим КК</b> (класна керівниця): <code>/adminhannaadd username</code>, <code>/adminhannaremove username</code>.
+        Вона пише боту: «дз …» — ДЗ; «обід після N уроку»; фото журналу — відвідування (бот сам знаходить сьогоднішній стовпчик);
+        будь-що інше — оголошення (жирним у канал і на головну). Усе — після «✅» у чернетці. 🗑 біля оголошення на сайті — прибрати.</li>
+      <li>Якщо бот не впевнений у предметі — бере урок, що йде (чи щойно був) у момент надсилання.</li>
+      <li>Нове ДЗ на завтра після 18:00 — пост зведення в каналі доповнюється сам.</li>
       <li><b>Файли до предмета</b>: на сторінці предмета (в адмін-режимі) — «＋ Додати фото або файл», до 25 МБ.
         Файл зʼявиться на сторінці предмета й у «Файлах» з датою додавання. 🗑 біля файлу — видалити.</li>
       <li><b>Борги</b> рахуються від <code>DEBT_FROM</code> у <code>site/app.js</code> (зараз 9.11.2026). <b>Відвідування</b> — поки лише заготовка.</li>
@@ -1241,6 +1403,24 @@ function infoPage() {
   return `<h1>Інфо</h1><p class="sub">Усе, що треба знати про сайт.</p>${gdzDoc}${user}${adm}`;
 }
 
+// Шапка й меню під поточний режим: бейджі, кольори, АвтоГДЗ у меню, кількість боргів
+function syncChrome(tab) {
+  document.getElementById("admin-badge").hidden = !ADMIN_TOKEN;
+  document.getElementById("gdz-badge").hidden = !GDZ_TOKEN;
+  document.getElementById("gdz-ai-mark").textContent = AI_TOKEN ? " + ШІ" : "";
+  document.getElementById("secret-link").hidden = !GDZ_TOKEN;
+  document.getElementById("adm-btn").classList.toggle("on", tab === "admin");
+  document.body.classList.toggle("mode-admin", !!ADMIN_TOKEN);
+  document.body.classList.toggle("mode-gdz", !!GDZ_TOKEN);
+  const n = debts().length;
+  document.getElementById("debt-cnt").textContent = n ? String(n) : "";
+}
+// Кнопки виходу в шапці (вони поза #app)
+document.querySelector(".top").addEventListener("click", (ev) => {
+  if (ev.target.closest("[data-lockout]")) { adminApi("logout").catch(() => {}); setToken(null); render(); }
+  if (ev.target.closest("[data-gdzout]")) { setGdz(null); closeModal(); render(); }
+});
+
 // ---------- роутинг ----------
 const app = document.getElementById("app");
 app.addEventListener("change", (ev) => {
@@ -1265,15 +1445,14 @@ function render() {
   else if (h === "/alerts") { tab = "alerts"; html = alertsPage(); }
   else if (h === "/done") { tab = "done"; html = donePage(); }
   else if (h === "/debts") { tab = "debts"; html = debtsPage(); }
+  else if (h === "/settings") { tab = "settings"; html = settingsPage(); }
   else if (h === "/visits" || h.startsWith("/visits/")) { tab = "visits"; html = visitsPage(h.slice(8) || null); }
   else html = home();
   app.innerHTML = html;
   document.querySelectorAll(".tabs a, .drawer a").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
-  document.getElementById("more").classList.toggle("on", ["subj", "files", "secret", "alerts", "done", "debts", "visits", "admin", "info", "seats", "bdays"].includes(tab));
+  document.getElementById("more").classList.toggle("on", ["subj", "files", "secret", "alerts", "done", "debts", "visits", "info", "seats", "bdays", "settings"].includes(tab));
   setDrawer(false);
-  document.getElementById("admin-badge").hidden = !ADMIN_TOKEN;
-  document.getElementById("gdz-badge").hidden = !GDZ_TOKEN;
-  document.getElementById("secret-link").textContent = GDZ_TOKEN ? "АвтоГДЗ" : "Секрет";
+  syncChrome(tab);
   clearInterval(timer);
   if (tab === "week" && SCHOOL.bells.length) {
     const shown = focusDay();
@@ -1297,6 +1476,11 @@ app.addEventListener("click", (ev) => {
   const day = ev.target.closest("[data-day]");
   if (day) { calSel = day.dataset.day; render(); return; }
   if (ev.target.closest("[data-lockout]")) { adminApi("logout").catch(() => {}); setToken(null); render(); return; }
+  if (ev.target.closest("[data-gdzout]")) { setGdz(null); closeModal(); if ((location.hash.slice(1) || "/") === "/secret") location.hash = "#/"; render(); return; }
+  if (ev.target.closest("[data-admgdz]")) {
+    adminApi("gdz").then((j) => { setGdz(j.gtoken, j.atoken); location.hash = "#/secret"; render(); }).catch((e) => alert(e.message));
+    return;
+  }
   const ag = ev.target.closest("[data-addgrp]");
   if (ag) { keepAddText(); ADD.grp = Number(ag.dataset.addgrp); render(); restoreAddText(); return; }
   const at = ev.target.closest("[data-atab]");
@@ -1352,6 +1536,24 @@ app.addEventListener("click", (ev) => {
   if (wk) { weekOff += Number(wk.dataset.week); render(); return; }
   const mon = ev.target.closest("[data-mon]");
   if (mon) { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + Number(mon.dataset.mon), 1); render(); return; }
+  const st = ev.target.closest("[data-set]");
+  if (st) { saveSet({ [st.dataset.set]: !SET[st.dataset.set] }); render(); return; }
+  const th = ev.target.closest("[data-theme-set]");
+  if (th) { saveSet({ theme: th.dataset.themeSet }); render(); return; }
+  if (ev.target.closest("[data-resetdone]")) {
+    if (!confirm("Скинути всі галочки «виконано» на цьому пристрої?")) return;
+    DONE = new Set(); try { localStorage.removeItem(DONE_KEY); } catch { /* */ } render(); return;
+  }
+  if (ev.target.closest("[data-allout]")) {
+    if (ADMIN_TOKEN) adminApi("logout").catch(() => {});
+    setToken(null); setGdz(null); render(); return;
+  }
+  const ad = ev.target.closest("[data-anndel]");
+  if (ad) {
+    if (!confirm("Прибрати це оголошення з сайту? (У каналі воно лишиться.)")) return;
+    adminApi("ann-delete", { id: ad.dataset.anndel }).then(() => { ANNS = ANNS.filter((a) => a.id !== ad.dataset.anndel); render(); }).catch((e) => alert(e.message));
+    return;
+  }
   const gt = ev.target.closest("[data-gtab]");
   if (gt) { GDZ_TAB = gt.dataset.gtab; render(); return; }
   const dt = ev.target.closest("[data-dtag]");
@@ -1382,16 +1584,18 @@ async function aiPeek() {
 
 app.addEventListener("submit", async (ev) => {
   const id = ev.target.id;
-  if (id === "lock" || id === "lock2") {
+  if (id === "lock") {
     ev.preventDefault();
-    const err = document.getElementById(`${id}-err`);
+    const err = document.getElementById("lock-err");
     err.textContent = "";
     try {
-      const r = await fetch(id === "lock" ? "api/admin/login" : "api/secret2", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: document.getElementById(`${id}-pw`).value }) });
+      const r = await fetch("api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: document.getElementById("lock-pw").value }) });
       const j = await r.json();
       if (!j.ok) { err.textContent = j.error || "Неправильний пароль"; return; }
-      if (id === "lock") setToken(j.token); else setGdz(j.token);
+      if (j.role === "admin") { setToken(j.token); render(); return; }
+      setGdz(j.gtoken, j.atoken || null);
+      location.hash = "#/secret";
       render();
     } catch { err.textContent = "Немає звʼязку із сервером"; }
     return;
@@ -1431,6 +1635,14 @@ app.addEventListener("submit", async (ev) => {
       if (!j.ok) throw new Error(j.error || "Не вдалося завантажити");
       FILES.push(j.file); render();
     } catch (e) { alert(e.message || "Немає звʼязку із сервером"); btn.disabled = false; btn.textContent = "Додати"; }
+    return;
+  }
+  if (id === "chanform") {
+    ev.preventDefault();
+    try {
+      const j = await adminApi("channels", { list: document.getElementById("chan-list").value.split(/\n+/).map((x) => x.trim()).filter(Boolean) });
+      AIA.channels = j.channels; render(); alert(`Збережено каналів: ${j.channels.length}`);
+    } catch (e) { alert(e.message); }
     return;
   }
   if (id === "shortform") {
@@ -1507,7 +1719,14 @@ document.addEventListener("keydown", (e) => {
 const get = (u, fallback) => fetch(`${u}?t=${Date.now()}`, { cache: "no-store" })
   .then((r) => (r.ok ? r.json() : fallback)).catch(() => fallback);
 const okAlerts = (a) => a && Array.isArray(a.list);
-Promise.all([get("data/homework.json", []), get("data/school.json", null), get("data/files.json", []), get("data/alerts.json", null), get("data/class.json", null)])
+function loadClassLive() {
+  return Promise.all([get("data/announcements.json", []), get("data/lunch.json", {}), get("data/visits.json", {}), get("data/alert_ai.json", {})])
+    .then(([a, l, v, ai]) => {
+      ANNS = Array.isArray(a) ? a : []; LUNCH = l && typeof l === "object" ? l : {};
+      VISITS = v && typeof v === "object" && !Array.isArray(v) ? v : {}; AIA = ai && typeof ai === "object" ? ai : {};
+    });
+}
+Promise.all([get("data/homework.json", []), get("data/school.json", null), get("data/files.json", []), get("data/alerts.json", null), get("data/class.json", null), loadClassLive()])
   .then(([hw, school, files, al, cls]) => {
     if (cls && Array.isArray(cls.seats)) CLASS = cls;
     RAW = Array.isArray(hw) ? hw : [];
@@ -1522,12 +1741,12 @@ Promise.all([get("data/homework.json", []), get("data/school.json", null), get("
   });
 // Тривоги оновлюються кожні 30 с; сторінку перемальовуємо, лише коли щось змінилось
 setInterval(async () => {
-  const al = await get("data/alerts.json", null);
+  const [al] = await Promise.all([get("data/alerts.json", null), loadClassLive()]);
   if (!okAlerts(al)) return;
-  const was = JSON.stringify([ALERTS.now, ALERTS.list]);
+  const was = JSON.stringify([ALERTS.now, ALERTS.list]) + JSON.stringify([AIA.risk, AIA.threat]);
   ALERTS = al;
   const tab = decodeURIComponent(location.hash.slice(1) || "/");
-  if (was !== JSON.stringify([al.now, al.list]) || tab === "/alerts") {
+  if (was !== JSON.stringify([al.now, al.list]) + JSON.stringify([AIA.risk, AIA.threat]) || tab === "/alerts" || tab === "/") {
     applyPref();
     if (!document.querySelector(".setup") && !drawer.classList.contains("open") && !GDZ.open) render();
   }
