@@ -7,6 +7,10 @@
 <meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#16171b" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233b5bdb'/%3E%3Ctext x='16' y='22' font-size='15' font-family='sans-serif' font-weight='700' fill='white' text-anchor='middle'%3EДЗ%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="ДЗ 8-Д">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -28,21 +32,21 @@
 <aside class="drawer" id="drawer" aria-label="Інші розділи" inert tabindex="-1">
   <div class="drawer-h"><b>Ще</b><button class="close" id="drawer-close" aria-label="Закрити">×</button></div>
   <nav>
-    <a href="#/s" data-tab="subj">Предмети</a>
-    <a href="#/done" data-tab="done">Виконане</a>
-    <a href="#/debts" data-tab="debts">Борги <span class="cnt" id="debt-cnt"></span></a>
-    <a href="#/visits" data-tab="visits">Відвідування</a>
+    <a href="#/s" data-tab="subj"><span class="ico" aria-hidden="true">📚</span>Предмети</a>
+    <a href="#/done" data-tab="done"><span class="ico" aria-hidden="true">✔️</span>Виконане</a>
+    <a href="#/debts" data-tab="debts"><span class="ico" aria-hidden="true">⚠️</span>Борги <span class="cnt" id="debt-cnt"></span></a>
+    <a href="#/visits" data-tab="visits"><span class="ico" aria-hidden="true">👥</span>Відвідування</a>
     <div class="drawer-sec">Додаткове</div>
-    <a href="#/alerts" data-tab="alerts">Тривоги</a>
-    <a href="#/files" data-tab="files">Файли</a>
-    <a href="#/seats" data-tab="seats">Розсадка</a>
-    <a href="#/bdays" data-tab="bdays">Дні народження</a>
-    <a href="#/secret" data-tab="secret" id="secret-link" hidden>АвтоГДЗ</a>
-    <a href="#/info" data-tab="info">Інфо</a>
+    <a href="#/alerts" data-tab="alerts"><span class="ico" aria-hidden="true">🚨</span>Тривоги</a>
+    <a href="#/files" data-tab="files"><span class="ico" aria-hidden="true">📎</span>Файли</a>
+    <a href="#/seats" data-tab="seats"><span class="ico" aria-hidden="true">🪑</span>Розсадка</a>
+    <a href="#/bdays" data-tab="bdays"><span class="ico" aria-hidden="true">🎂</span>Дні народження</a>
+    <a href="#/secret" data-tab="secret" id="secret-link" hidden><span class="ico" aria-hidden="true">🔵</span>АвтоГДЗ</a>
+    <a href="#/info" data-tab="info"><span class="ico" aria-hidden="true">ℹ️</span>Інфо</a>
+    <a href="#/settings" data-tab="settings" class="settings-link"><span class="ico" aria-hidden="true">⚙️</span>Налаштування</a>
   </nav>
-  <a href="#/settings" data-tab="settings" class="settings-link">⚙️ Налаштування</a>
 </aside>
-<main id="app" aria-live="polite"><p class="muted pad">Завантаження…</p></main>
+<main id="app" aria-live="polite"><div class="skel" aria-label="Завантаження"><i class="l"></i><i class="s"></i><i></i><i></i></div></main>
 <div id="viewer" class="viewer" hidden><img alt=""><button class="close" aria-label="Закрити">×</button></div>
 <script src="app.js"></script>
 </body>

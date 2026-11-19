@@ -194,6 +194,13 @@ const rank = (t) => { const i = ORDER.indexOf(t); return i < 0 ? 999 : i; };
 const sortSubj = (list) => [...list].sort((a, b) => rank(a.tag) - rank(b.tag));
 
 // ---------- картка ДЗ ----------
+// «на завтра», «на пт», «на 03.12» (повна дата — у підказці й календарі)
+function dueShort(d) {
+  const r = relDay(d);
+  if (r === "сьогодні" || r === "завтра" || r === "післязавтра") return r;
+  const diff = Math.round((parse(d) - parse(today())) / 86400000);
+  return diff > 0 && diff < 7 ? WD_TINY[parse(d).getDay()] : short(d);
+}
 function card(e, { showSubj = true } = {}) {
   const s = subj(e.tag);
   if (e.alert) {
@@ -203,7 +210,8 @@ function card(e, { showSubj = true } = {}) {
     <p class="hw"><b>🚨 Була тривога!</b> ДЗ не задавали · ${e.pct}% уроку під тривогою</p>
   </article>`;
   }
-  const dates = `задано ${short(e.given)}` + (e.due ? ` → здати ${short(e.due)}` : "");
+  const dates = e.due ? `на ${dueShort(e.due)}` : `задано ${short(e.given)}`;
+  const datesFull = `задано ${short(e.given)}` + (e.due ? ` → здати ${short(e.due)}` : "");
   const photos = (e.photos || []).map((p) =>
     `<button data-img="${esc(p)}" aria-label="Відкрити фото"><img src="${esc(p)}" loading="lazy" alt="Фото дошки"></button>`).join("");
   const tasks = e.tasks || [];
@@ -222,7 +230,7 @@ function card(e, { showSubj = true } = {}) {
   const check = `<button type="button" class="check" data-done="${esc(e.id)}" role="checkbox" aria-checked="${done}" aria-label="${done ? "Повернути в невиконане" : "Позначити виконаним"}"></button>`;
   return `<article class="card${done ? " is-done" : ""}${isMine(e) ? "" : " not-mine"}" style="--c:${s.color}">
     <div class="head">${check}${showSubj ? `<a class="subj" href="#/s/${encodeURIComponent(e.tag)}">${esc(s.name)}<i class="gdot" style="--g:${groupColor(e.tag)}"></i></a>` : "<span></span>"}
-      ${g ? `<span class="grp">${esc(g)}</span>` : ""}<span class="dates">${dates}</span>${del}</div>
+      ${g ? `<span class="grp">${esc(g)}</span>` : ""}<span class="dates" title="${datesFull}">${dates}</span>${del}</div>
     ${ADMIN_TOKEN && EDIT_ID === String(e.id) ? `<form id="edit-form" class="edit-form" data-id="${esc(e.id)}">
       <label>Текст ДЗ<textarea name="hw" rows="4" required>${esc(e.homework)}</textarea></label>
       <label>Здати<input type="date" name="due" value="${esc(e.due || "")}"></label>
@@ -373,7 +381,14 @@ function nowState() {
   return { kind: ls.length ? "after" : "free", day: nd, l: first };
 }
 const mmss = (s) => (s >= 3600 ? `${Math.floor(s / 3600)}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}` : `${pad(Math.floor(s / 60))}:${pad(s % 60)}`);
+// Одна картка статусу: зверху смужка (тривога / можлива тривога / обід), нижче — «Зараз»
 function nowCard() {
+  const strips = alertBanner() + (SET.showClass ? lunchBanner() : "");
+  const main = SET.showNow ? nowMain() : "";
+  if (!strips && !main) return `<section class="now now-empty" id="now"></section>`;
+  return `<section class="now${main ? "" : " now-min"}" id="now">${strips}${main ? `<div class="now-body">${main}</div>` : ""}</section>`;
+}
+function nowMain() {
   const st = nowState();
   if (!st) return "";
   let html = "";
@@ -394,7 +409,7 @@ function nowCard() {
       ? `<div class="next">Наступний урок: <b>${relDay(st.day)}, ${longDay(st.day)}</b> о ${bell(st.l[0], st.day)[0]} — <b>${esc(subj(st.l[1]).name)}</b></div>${lessonLine(st.l, false, st.day)}`
       : "");
   }
-  return `<section class="now" id="now">${html}</section>`;
+  return html;
 }
 
 // ---------- сторінки ----------
@@ -405,17 +420,22 @@ function hwCount(list) {
 }
 // ---------- тривога (офіційна + ШІ-прогноз), обід, оголошення ----------
 const aiFresh = () => AIA && AIA.checked && (Date.now() - new Date(AIA.checked).getTime()) < 20 * 60 * 1000;
+// Смужка тривоги на головній: лише головний рядок; подробиці — за стрілочкою (стан тримається між оновленнями щосекунди)
+let STRIP_OPEN = false;
+function stripHtml(cls, title, extra) {
+  return `<div class="strip ${cls}"><div class="strip-row"><a href="#/alerts">${title}</a>${extra
+    ? `<button type="button" class="strip-tog" data-strip aria-expanded="${STRIP_OPEN}" aria-label="${STRIP_OPEN ? "Сховати подробиці" : "Показати подробиці"}">›</button>` : ""}</div>
+    ${extra && STRIP_OPEN ? `<div class="strip-more">${extra}</div>` : ""}</div>`;
+}
 function alertBanner() {
   if (ALERTS.now) {
-    const t = aiFresh() && AIA.threat ? ` · загроза: ${esc(AIA.threat)}` : "";
-    const end = aiFresh() && AIA.end_min ? `за оцінкою ШІ ще ~${AIA.end_min} хв · ` : "";
-    return `<a class="alert-line" href="#/alerts">🚨 Повітряна тривога в Києві${t}
-      ${end ? `<small>${end.replace(/ · $/, "")}</small>` : ""}</a>`;
+    const t = aiFresh() && AIA.threat ? ` · ${esc(AIA.threat)}` : "";
+    const extra = [aiFresh() && AIA.end_min ? `За оцінкою ШІ ще ~${AIA.end_min} хв.` : "", aiFresh() && AIA.summary ? esc(AIA.summary) : ""].filter(Boolean).join(" ");
+    return stripHtml("strip-alert", `🚨 Повітряна тривога в Києві${t}`, extra);
   }
   if (aiFresh() && !AIA.stale && AIA.risk >= 5) {
-    return `<a class="risk" href="#/alerts" style="text-decoration:none;display:block">
-      <b>⚠️ Можлива тривога · впевненість ${AIA.risk}/10${AIA.threat ? ` · ${esc(AIA.threat)}` : ""}${AIA.eta_min ? ` · ~через ${AIA.eta_min} хв` : ""}</b>
-      ${esc(AIA.summary || "")}<small>Неофіційно: ШІ за каналами моніторингу. Орієнтуйся на сирену й офіційні застосунки.</small></a>`;
+    const extra = `${esc(AIA.summary || "")}${AIA.eta_min ? ` Орієнтовно через ${AIA.eta_min} хв.` : ""}<br><small>Неофіційно: ШІ за каналами моніторингу. Орієнтуйся на сирену й офіційні застосунки.</small>`;
+    return stripHtml("strip-risk", `⚠️ Можлива тривога · ${AIA.risk}/10${AIA.threat ? ` · ${esc(AIA.threat)}` : ""}`, extra);
   }
   return "";
 }
@@ -427,16 +447,17 @@ function lunchBanner() {
   const sec = nowSec(), endL = toMin(after[1]) * 60, startL = toMin(after[0]) * 60;
   const beforeStart = bell(l.after - 1) ? toMin(bell(l.after - 1)[1]) * 60 : startL - 600;
   const unoff = l.official ? "" : ` <small>(не офіційно)</small>`;
-  if (sec >= endL && sec < (next ? toMin(next[0]) * 60 : endL + 1200)) return `<div class="lunch big">🍽 ОБІД${unoff}</div>`;
-  if (sec >= startL && sec < endL) return `<div class="lunch">🍽 ОБІД після цього уроку (${l.after}-го)${unoff}</div>`;
-  if (sec >= beforeStart && sec < startL) return `<div class="lunch">🍽 ОБІД через урок — після ${l.after}-го${unoff}</div>`;
+  if (sec >= endL && sec < (next ? toMin(next[0]) * 60 : endL + 1200)) return `<div class="strip strip-lunch big">🍽 ОБІД${unoff}</div>`;
+  if (sec >= startL && sec < endL) return `<div class="strip strip-lunch">🍽 ОБІД після цього уроку (${l.after}-го)${unoff}</div>`;
+  if (sec >= beforeStart && sec < startL) return `<div class="strip strip-lunch">🍽 ОБІД через урок — після ${l.after}-го${unoff}</div>`;
   return "";
 }
 function annBlock() {
   const since = Date.now() - 3 * 86400000;
   const list = ANNS.filter((a) => new Date(a.at).getTime() >= since).slice(-3).reverse();
-  return list.map((a) => `<div class="ann"><b class="t">📢 ${esc(a.text)}</b>${a.photo ? `<button type="button" class="crop" data-img="${esc(a.photo)}" style="padding:0;border:0;background:none"><img src="${esc(a.photo)}" alt="Фото до оголошення" loading="lazy"></button>` : ""}
-    <div class="meta"><span>Від класної керівниці · ${short(a.at.slice(0, 10))} ${a.at.slice(11, 16)}</span>${ADMIN_TOKEN ? `<button type="button" class="badge-x" data-anndel="${esc(a.id)}" aria-label="Видалити оголошення">🗑</button>` : ""}</div></div>`).join("");
+  return list.map((a) => `<details class="mini ann"><summary><span class="mi">📢</span><span class="mt">${esc(a.text)}</span></summary>
+    <div class="mini-body">${a.photo ? `<button type="button" class="crop" data-img="${esc(a.photo)}"><img src="${esc(a.photo)}" alt="Фото до оголошення" loading="lazy"></button>` : ""}
+    <div class="meta"><span>Від класної керівниці · ${short(a.at.slice(0, 10))} ${a.at.slice(11, 16)}</span>${ADMIN_TOKEN ? `<button type="button" class="badge-x" data-anndel="${esc(a.id)}" aria-label="Видалити оголошення">🗑</button>` : ""}</div></div></details>`).join("");
 }
 
 function home() {
@@ -444,8 +465,7 @@ function home() {
   const due = byDue(mine);
   const t = today();
   const days = Object.keys(due).filter((d) => d > t).sort();
-  let html = alertBanner() + (SET.showClass ? lunchBanner() : "") + (SET.showNow ? nowCard() : "") +
-    (SET.showClass ? annBlock() : "") + (SET.showBdays ? bdayWidget() : "");
+  let html = nowCard() + `<div class="minis">${SET.showClass ? annBlock() : ""}${SET.showBdays ? bdayWidget() : ""}</div>`;
   const debtN = debts().length;
   if (debtN && !SET.hideDebts) html += `<a class="debt-line" href="#/debts">⚠️ Боргів: ${debtN} — переглянути ›</a>`;
   const tmr = nextSchoolDay(t), tmrAll = tmr ? RAW.filter((e) => e.due === tmr && isMine(e)) : [];
@@ -606,6 +626,17 @@ function avgColor(items) {
   return GROUPS[4 - Math.min(4, Math.max(1, Math.round(avg)))][1];
 }
 let calMonth = null, calSel = null;
+// Яка частка навчального часу дня (у %) пройшла під тривогою
+function dayAlertShare(s) {
+  let all = 0, hit = 0;
+  for (const [n] of plan(s)) {
+    const b = bell(n, s);
+    if (!b) continue;
+    const len = toMin(b[1]) - toMin(b[0]);
+    all += len; hit += len * alertPct(s, n) / 100;
+  }
+  return all ? 100 * hit / all : 0;
+}
 function cal() {
   const due = byDue();
   const t = today();
@@ -623,8 +654,9 @@ function cal() {
     const items = due[s] || [];
     const cls = ["d", wk && "wk", !wk && SCHOOL.holidays.includes(s) && "hol", s === t && "today", s === calSel && "sel"].filter(Boolean).join(" ");
     const dots = items.length ? `<i class="dot" style="--c:${avgColor(items)}"></i>` : "";
+    const alertDay = s <= t && dayAlertShare(s) > 15;
     const label = `${n} ${MON[m]}${items.length ? `, ${items.length} ${plural(items.length)}` : ""}`;
-    cells += `<button class="${cls}" data-day="${s}" aria-label="${label}">${n}<span class="dots">${dots}</span></button>`;
+    cells += `<button class="${cls}${alertDay ? " al-day" : ""}" data-day="${s}" aria-label="${label}${alertDay ? ", понад 15% уроків під тривогою" : ""}">${n}<span class="dots">${dots}</span></button>`;
   }
   const sel = due[calSel] || [];
   return `<div class="cal-nav"><button data-mon="-1" aria-label="Попередній місяць">‹</button>
@@ -881,8 +913,8 @@ function bdaysPage() {
 // Віджет на головній: ДН сьогодні / завтра / післязавтра
 function bdayWidget() {
   const soon = (CLASS.birthdays || []).map(([md, who]) => ({ who, ...bdayNext(md) })).filter((b) => b.days <= 2).sort((a, b) => a.days - b.days);
-  const lines = weekendBdays().concat(soon.map((b) => `🎂 <b>${cap(bdayWhen(b.days))}</b> ДН у ${esc(b.who)}`));
-  return lines.length ? `<a class="bday-w" href="#/bdays">${lines.join("<br>")}</a>` : "";
+  const lines = weekendBdays().map((l) => l.replace(/^🎂 /, "")).concat(soon.map((b) => `<b>${cap(bdayWhen(b.days))}</b> ДН у ${esc(b.who)}`));
+  return lines.length ? `<a class="mini bday-w" href="#/bdays"><span class="mi">🎂</span><span class="mt">${lines.join(" · ")}</span></a>` : "";
 }
 // ДН, що припали на вихідні (чи канікули) перед сьогоднішнім навчальним днем — показуємо до кінця 3-го уроку
 function weekendBdays() {
@@ -1428,7 +1460,7 @@ app.addEventListener("change", (ev) => {
     keepAddText(); ADD = { tag: ev.target.value, grp: 0 }; render(); restoreAddText();
   }
 });
-let timer = null;
+let timer = null, LAST_TAB = null;
 function render() {
   const h = decodeURIComponent(location.hash.slice(1) || "/");
   let tab = "home", html;
@@ -1449,6 +1481,7 @@ function render() {
   else if (h === "/visits" || h.startsWith("/visits/")) { tab = "visits"; html = visitsPage(h.slice(8) || null); }
   else html = home();
   app.innerHTML = html;
+  if (tab !== LAST_TAB) { app.classList.remove("fade"); void app.offsetWidth; app.classList.add("fade"); LAST_TAB = tab; }
   document.querySelectorAll(".tabs a, .drawer a").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
   document.getElementById("more").classList.toggle("on", ["subj", "files", "secret", "alerts", "done", "debts", "visits", "info", "seats", "bdays", "settings"].includes(tab));
   setDrawer(false);
@@ -1522,6 +1555,7 @@ app.addEventListener("click", (ev) => {
       const c = chk.closest(".card");
       c.classList.add("is-done", "leaving");
       chk.setAttribute("aria-checked", "true");
+      chk.classList.add("pop");
       setTimeout(render, 650); // викреслюється, потім зникає
     } else render();
     return;
@@ -1536,6 +1570,12 @@ app.addEventListener("click", (ev) => {
   if (wk) { weekOff += Number(wk.dataset.week); render(); return; }
   const mon = ev.target.closest("[data-mon]");
   if (mon) { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + Number(mon.dataset.mon), 1); render(); return; }
+  if (ev.target.closest("[data-strip]")) {
+    STRIP_OPEN = !STRIP_OPEN;
+    const el = document.getElementById("now");
+    if (el) el.outerHTML = nowCard();
+    return;
+  }
   const st = ev.target.closest("[data-set]");
   if (st) { saveSet({ [st.dataset.set]: !SET[st.dataset.set] }); render(); return; }
   const th = ev.target.closest("[data-theme-set]");
