@@ -562,7 +562,7 @@ function home() {
   const t = today();
   const days = Object.keys(due).filter((d) => d > t).sort();
   let html = "";
-  let side = nowCard() + `<div class="minis">${breakLine(7)}${testsMini()}${SET.showClass ? annBlock() : ""}${SET.showBdays ? bdayWidget() : ""}</div>`;
+  let side = nowCard() + loginNudge() + `<div class="minis">${breakLine(7)}${testsMini()}${SET.showClass ? annBlock() : ""}${SET.showBdays ? bdayWidget() : ""}</div>`;
   const debtN = debts().length;
   side += homePolls();
   if (debtN && SET.showDebts) side += `<a class="debt-line" href="#/debts">${ic("warn")} Боргів: ${debtN} — переглянути ${ic("chevR")}</a>`;
@@ -888,6 +888,8 @@ function queueSync() {
   clearTimeout(ACC.timer);
   ACC.timer = setTimeout(pushSync, 1000);
 }
+// вийшов з адмін-режиму чи ГДЗ — акаунт більше не вмикає його сам
+function dropRole(role) { if (ACC.token) accPost("me/drop-role", { role }).catch(() => {}); }
 async function pushSync() {
   ACC.timer = 0;
   try {
@@ -899,8 +901,12 @@ async function pushSync() {
 async function pullSync(first = false) {
   if (!ACC.token || ACC.timer) return;
   try {
-    const j = await accPost("me");
+    const j = await accPost("me", { want: { adm: !ADMIN_TOKEN, gdz: !GDZ_TOKEN } });
     if (!j.ok) { if (j.relogin) accLogout(true); return; }
+    let modes = false;
+    if (j.adm && !ADMIN_TOKEN) { setToken(j.adm); modes = true; }  // адмін-доступ, запамʼятаний в акаунті
+    if (j.gtoken && !GDZ_TOKEN) { setGdz(j.gtoken, j.atoken || null); modes = true; }
+    if (modes) safeRender();
     ACC.name = j.name; ACC.remind = j.remind; ACC.loaded = true;
     try { localStorage.setItem("dz-acc-name", j.name || ""); } catch { /* */ }
     const s = j.data || {};
@@ -956,6 +962,15 @@ async function accRemind(on, at) {
   const j = await accPost("me/remind", { on, at }).catch(() => ({}));
   if (j.ok) { ACC.remind = j.remind; render(); showToast(on ? `${ic("bell")} Нагадування о ${esc(j.remind.at)}` : "Нагадування вимкнено"); }
   else showToast(esc(j.error || "Не вдалося"));
+}
+// на головній: нагадування увійти (можна сховати на 14 днів)
+function loginNudge() {
+  if (ACC.token || ACC.login) return "";
+  try { if (Date.now() < Number(localStorage.getItem("dz-nudge-hide") || 0)) return ""; } catch { /* */ }
+  return `<section class="nudge"><span class="acc-ava">${ic("user")}</span><div class="acc-t"><b>Увійди через Telegram</b>
+    <small>Галочки й нотатки на всіх пристроях, нагадування про своє ДЗ, імʼя в опитуваннях</small></div>
+    <button type="button" class="nudge-x" data-nudge-hide aria-label="Сховати">${ic("x")}</button>
+    <button type="button" class="acc-btn" data-acc-login>${ic("tg")} Увійти</button></section>`;
 }
 function accountCard() {
   if (ACC.login) {
@@ -2047,8 +2062,8 @@ function syncChrome(tab) {
 }
 // Кнопки виходу в шапці (вони поза #app)
 document.querySelector(".top").addEventListener("click", (ev) => {
-  if (ev.target.closest("[data-lockout]")) { adminApi("logout").catch(() => {}); setToken(null); render(); }
-  if (ev.target.closest("[data-gdzout]")) { setGdz(null); closeModal(); render(); }
+  if (ev.target.closest("[data-lockout]")) { adminApi("logout").catch(() => {}); dropRole("admin"); setToken(null); render(); }
+  if (ev.target.closest("[data-gdzout]")) { dropRole("gdz"); setGdz(null); closeModal(); render(); }
 });
 
 // ---------- роутинг ----------
@@ -2125,8 +2140,8 @@ window.addEventListener("hashchange", () => { render(); scrollTo(0, 0); });
 app.addEventListener("click", (ev) => {
   const day = ev.target.closest("[data-day]");
   if (day) { calSel = day.dataset.day; render(); return; }
-  if (ev.target.closest("[data-lockout]")) { adminApi("logout").catch(() => {}); setToken(null); render(); return; }
-  if (ev.target.closest("[data-gdzout]")) { setGdz(null); closeModal(); if ((location.hash.slice(1) || "/") === "/secret") location.hash = "#/"; render(); return; }
+  if (ev.target.closest("[data-lockout]")) { adminApi("logout").catch(() => {}); dropRole("admin"); setToken(null); render(); return; }
+  if (ev.target.closest("[data-gdzout]")) { dropRole("gdz"); setGdz(null); closeModal(); if ((location.hash.slice(1) || "/") === "/secret") location.hash = "#/"; render(); return; }
   if (ev.target.closest("[data-admgdz]")) {
     adminApi("gdz").then((j) => { setGdz(j.gtoken, j.atoken); location.hash = "#/secret"; render(); }).catch((e) => alert(e.message));
     return;
@@ -2164,6 +2179,7 @@ app.addEventListener("click", (ev) => {
   const delBtn = ev.target.closest("[data-del]");
   if (delBtn) { deleteHw(delBtn.dataset.del); return; }
   if (ev.target.closest("[data-acc-login]")) { accLogin(); return; }
+  if (ev.target.closest("[data-nudge-hide]")) { try { localStorage.setItem("dz-nudge-hide", String(Date.now() + 14 * 86400000)); } catch { /* */ } render(); return; }
   const cadd = ev.target.closest("[data-cadd]");
   if (cadd) { CM_OPEN = cadd.dataset.cadd; render(); const i = document.querySelector(".cm-form input"); if (i) i.focus(); return; }
   const cdel = ev.target.closest("[data-cdel]");
@@ -2361,7 +2377,7 @@ app.addEventListener("submit", async (ev) => {
     err.textContent = "";
     try {
       const r = await fetch("api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: document.getElementById("lock-pw").value }) });
+        body: JSON.stringify({ password: document.getElementById("lock-pw").value, acc: ACC.token }) });
       const j = await r.json();
       if (!j.ok) { err.textContent = j.error || "Неправильний пароль"; return; }
       if (j.role === "admin") { setToken(j.token); render(); return; }
@@ -2713,6 +2729,20 @@ addEventListener("offline", () => { NET.ok = false; safeRender(); });
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
   addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 }
+// iOS: після клавіатури Safari інколи лишає нижню панель посеред екрана — перераховуємо її,
+// а поки клавіатура відкрита — ховаємо
+(() => {
+  const vv = window.visualViewport, bar = document.querySelector(".bnav");
+  if (!vv || !bar) return;
+  const sync = () => {
+    document.body.classList.toggle("kb-open", vv.height < window.innerHeight * 0.75);
+    bar.style.transform = "translateZ(0)";
+    requestAnimationFrame(() => { bar.style.transform = ""; });
+  };
+  vv.addEventListener("resize", sync);
+  document.addEventListener("focusout", () => setTimeout(() => { window.scrollTo(window.scrollX, window.scrollY); sync(); }, 120));
+  window.addEventListener("orientationchange", () => setTimeout(sync, 300));
+})();
 if (ACC.token) pullSync();
 setInterval(() => pullSync(), 30000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) pullSync(); });

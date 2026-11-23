@@ -1257,3 +1257,14 @@ button:active:not(:disabled), .tile:active, .bnav a:active, .debt-line:active, .
 .set-theme .seg { flex-wrap: wrap; }
 .acc:not(.on):not(.acc-wait) { grid-template-columns: auto 1fr; }
 .acc:not(.on):not(.acc-wait) .acc-btn { grid-column: 1 / -1; justify-content: center; padding: 11px 14px; }
+
+/* нагадування увійти на головній */
+.nudge { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px 12px; padding: 12px 14px; margin: 12px 0;
+  background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); border-left: 4px solid #229ed9; }
+.nudge .acc-btn { grid-column: 1 / -1; justify-content: center; }
+.nudge-x { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; align-self: start; }
+.nudge-x svg.i { width: 16px; height: 16px; vertical-align: 0; }
+
+/* iOS: панель не показуємо, поки відкрита клавіатура */
+@media (max-width: 759px) { body.kb-open .bnav { display: none; } }
+.bnav { will-change: transform; }
