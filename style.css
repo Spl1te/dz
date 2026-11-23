@@ -348,7 +348,8 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: v
 }
 .check:hover { border-color: var(--c, var(--accent)); }
 .check[aria-checked="true"] { background: var(--c, var(--accent)); border-color: var(--c, var(--accent)); }
-.check[aria-checked="true"]::after { content: "✓"; font-size: 15px; font-weight: 800; line-height: 1; color: #fff; }
+.check[aria-checked="true"]::after { content: ""; width: 15px; height: 15px; background: #fff; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat; animation: tick .25s ease-out; }
+@keyframes tick { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
 .card.is-done .hw { text-decoration: line-through; color: var(--muted); }
 .card.is-done { opacity: .75; }
 .card.leaving { animation: leave .6s ease forwards; }
@@ -674,7 +675,7 @@ body.mode-gdz:not(.mode-admin) .card, body.mode-gdz:not(.mode-admin) .now { back
 details.mini { display: block; padding: 0; }
 details.mini summary { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; list-style: none; }
 details.mini summary::-webkit-details-marker { display: none; }
-details.mini summary::after { content: "›"; color: var(--muted); transition: transform .15s; }
+details.mini summary::after { content: ""; flex: none; width: 16px; height: 16px; background: var(--muted); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E") center / contain no-repeat; transition: transform .2s ease; }
 details.mini[open] summary::after { transform: rotate(90deg); }
 details.mini[open] .mt { white-space: normal; font-weight: 600; }
 .mini-body { padding: 0 14px 12px 41px; }
@@ -728,3 +729,531 @@ details.mini[open] .mt { white-space: normal; font-weight: 600; }
 .strip-more { margin-top: 6px; font-weight: 500; font-size: 15px; }
 .strip-more small { display: block; margin-top: 4px; font-size: 13px; opacity: .8; }
 .strip-risk .strip-more { color: var(--text); }
+
+/* нижня панель на телефоні */
+.bnav { display: none; }
+@media (max-width: 759px) {
+  .top .tabs, .top .more { display: none; }
+  .top { display: flex; align-items: center; gap: 8px; padding-bottom: 10px; min-height: 56px; }
+  .adm-btn { position: static; margin-left: auto; border-radius: 50%; width: 36px; padding: 0; }
+  .bnav {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line);
+    padding: 4px 4px max(6px, env(safe-area-inset-bottom));
+  }
+  .bnav a, .bnav button {
+    position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 6px 0 4px; border: 0; background: transparent; font: inherit; font-size: 11px; font-weight: 600;
+    color: var(--muted); text-decoration: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .bnav svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .bnav button svg { fill: currentColor; stroke: none; }
+  .bnav a.on, .bnav button.on { color: var(--accent); }
+  .bnav a.on svg { stroke-width: 2.2; }
+  .bnav a.on::before, .bnav button.on::before { content: ""; position: absolute; top: 2px; width: 44px; height: 30px; border-radius: 15px; background: var(--accent-soft); z-index: -1; }
+  .bnav .bdot { position: absolute; top: 5px; left: calc(50% + 8px); width: 8px; height: 8px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px var(--bg); }
+  #app { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .modal { z-index: 25; }
+}
+
+/* тонкі іконки замість емодзі */
+svg.i { width: 1.15em; height: 1.15em; vertical-align: -.2em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.drawer nav a .ico { display: inline-flex; align-items: center; color: var(--muted); }
+.drawer nav a .ico svg.i { width: 20px; height: 20px; }
+.drawer nav a.on .ico, .drawer .settings-link .ico { color: inherit; }
+.mini .mi svg.i { width: 18px; height: 18px; vertical-align: -.25em; }
+.del svg.i, .file-del svg.i, .badge-x svg.i { width: 17px; height: 17px; }
+
+/* порожні екрани */
+.empty.fun { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 32px 20px; }
+.empty.fun .e-ic { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent); margin-bottom: 8px; }
+.empty.fun .e-ic svg.i { width: 32px; height: 32px; stroke-width: 1.6; }
+.empty.fun b { font-size: 17px; color: var(--text); }
+.empty.fun span:not(.e-ic) { font-size: 15px; color: var(--muted); }
+
+/* звʼязок */
+.offbar { display: flex; align-items: center; gap: 8px; margin: -4px 0 12px; padding: 8px 12px; border-radius: 10px;
+  background: var(--danger-soft); color: var(--danger); font-size: 13px; font-weight: 600; }
+.upd { text-align: center; color: var(--muted); font-size: 13px; margin: 16px 0 0; }
+
+/* спливне «Позначено · Скасувати» */
+.toast { position: fixed; left: 50%; bottom: 24px; z-index: 40; display: flex; align-items: center; gap: 14px;
+  max-width: calc(100vw - 32px); padding: 10px 10px 10px 16px; border-radius: 12px;
+  background: var(--text); color: var(--bg); font-size: 15px; box-shadow: 0 6px 24px rgb(0 0 0 / .25);
+  transform: translate(-50%, 140%); opacity: 0; pointer-events: none; transition: transform .22s ease, opacity .22s; }
+.toast.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+.toast button { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 8px; padding: 6px 10px;
+  background: color-mix(in srgb, var(--bg) 18%, transparent); color: inherit; font: inherit; font-weight: 700; cursor: pointer; }
+@media (max-width: 759px) { .toast { bottom: calc(74px + env(safe-area-inset-bottom)); } }
+
+/* свайп картки */
+.card.swiping { transition: none; }
+.card { transition: transform .2s ease, box-shadow .2s; }
+.card.swipe-ready { box-shadow: 0 0 0 2px var(--admin), var(--shadow); }
+
+/* головна на широкому екрані: дві колонки */
+.h-day { display: none; }
+@media (min-width: 1100px) {
+  body.tab-home main { max-width: 1140px; }
+  .home { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 28px; align-items: start; }
+  .h-main { grid-column: 1; grid-row: 1; }
+  .h-side { grid-column: 2; grid-row: 1; position: sticky; top: 72px; max-height: calc(100vh - 84px); overflow-y: auto;
+    scrollbar-width: thin; padding-bottom: 8px; }
+  .h-main > h1:first-child, .h-main > .empty:first-child { margin-top: 0; }
+  .h-day { display: block; background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 12px 16px; margin-top: 12px; }
+  .h-day h2 { margin: 0 0 6px; font-size: 17px; }
+  .h-day .h-more { display: block; margin-top: 6px; font-size: 13px; text-decoration: none; font-weight: 600; }
+}
+@media (prefers-reduced-motion: reduce) { .toast, .card { transition: none; } }
+
+/* «⋯» у шапці замість «A»; Адмінпанель — у меню */
+.top .more { margin-left: auto; }
+@media (max-width: 759px) {
+  .top .more { display: grid; position: static; margin-left: auto; }
+}
+.drawer .admin-link .ico { color: var(--admin); }
+.toast > span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+/* іконки рівно по центру тексту */
+.drawer nav a { display: flex; align-items: center; }
+.drawer nav a .ico { width: 26px; flex: none; }
+.drawer nav a .cnt { margin-left: auto; }
+svg.i { vertical-align: -.28em; }
+.mini .mi svg.i { vertical-align: -.3em; }
+
+/* 2. нагадування на картці */
+.rem { border: 0; background: transparent; color: var(--muted); width: 32px; height: 32px; margin: -6px -6px -6px 0;
+  border-radius: 8px; display: grid; place-items: center; cursor: pointer; flex: none; }
+.rem svg.i { width: 18px; height: 18px; vertical-align: 0; }
+.rem:hover { background: var(--accent-soft); color: var(--accent); }
+.rem.on { color: var(--accent); }
+
+/* 3. кільце «зроблено N з M» */
+.h1row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.h1row h1 { margin-bottom: 0; }
+.ring { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text); flex: none; }
+.ring svg { width: 38px; height: 38px; }
+.ring circle { fill: none; stroke-width: 4; }
+.ring .rb { stroke: var(--line); }
+.ring .rf { stroke: var(--admin); stroke-linecap: round; transition: stroke-dasharray .4s; }
+.ring span { font-size: 15px; line-height: 1.15; }
+.ring small { display: block; font-size: 11px; color: var(--muted); }
+
+/* 1. пошук ДЗ */
+.search { display: flex; align-items: center; gap: 8px; margin: 4px 0 16px; padding: 0 12px; height: 44px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; color: var(--muted); }
+.search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 16px; }
+
+/* 4. календар: що темніший день, то більше ДЗ */
+.grid .d.lv1:not(.sel):not(.al-day) { background: color-mix(in srgb, var(--accent) 12%, var(--card)); }
+.grid .d.lv2:not(.sel):not(.al-day) { background: color-mix(in srgb, var(--accent) 22%, var(--card)); }
+.grid .d.lv3:not(.sel):not(.al-day) { background: color-mix(in srgb, var(--accent) 34%, var(--card)); }
+.grid .d.lv4:not(.sel):not(.al-day) { background: color-mix(in srgb, var(--accent) 48%, var(--card)); }
+
+/* 5. змах між тижнями / місяцями */
+#app.slide-l { animation: slide-l .22s ease-out; }
+#app.slide-r { animation: slide-r .22s ease-out; }
+@keyframes slide-l { from { transform: translateX(28px); opacity: .4; } to { transform: none; opacity: 1; } }
+@keyframes slide-r { from { transform: translateX(-28px); opacity: .4; } to { transform: none; opacity: 1; } }
+
+/* 6. перегляд фото */
+.viewer .vprev, .viewer .vnext { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 64px; border: 0;
+  border-radius: 12px; background: rgba(255,255,255,.12); color: #fff; font-size: 32px; cursor: pointer; }
+.viewer .vprev { left: 8px; } .viewer .vnext { right: 8px; }
+.viewer .vprev[hidden], .viewer .vnext[hidden] { display: none; }
+.viewer .vcount { position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+  color: #fff; font-size: 15px; font-weight: 600; background: rgba(255,255,255,.12); padding: 4px 12px; border-radius: 20px; }
+.viewer .vcount:empty { display: none; }
+@media (hover: none) { .viewer .vprev, .viewer .vnext { background: transparent; } }
+
+/* 7. «Сайт оновлено» */
+.upbar { position: fixed; left: 50%; top: max(12px, env(safe-area-inset-top)); transform: translateX(-50%); z-index: 41;
+  display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 14px; border-radius: 12px; max-width: calc(100vw - 32px);
+  background: var(--accent); color: var(--on-accent); font-size: 15px; font-weight: 600; box-shadow: 0 6px 24px rgb(0 0 0 / .25);
+  animation: sheet-up .25s ease-out; }
+.upbar > span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.upbar button { border: 0; border-radius: 8px; padding: 6px 12px; background: var(--on-accent); color: var(--accent); font: inherit; font-weight: 700; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { #app.slide-l, #app.slide-r { animation: none; } }
+#app .tiles[hidden], #app .group[hidden] { display: none; }
+
+.visits-btn { display: inline-flex; align-items: center; gap: 6px; }
+
+
+/* нижня панель — три вкладки; червона крапка боргів — на «⋯» у шапці */
+@media (max-width: 759px) { .bnav { grid-template-columns: repeat(3, 1fr); } }
+.more { position: relative; }
+.more .bdot { position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger);
+  box-shadow: 0 0 0 2px var(--bg); }
+.more .bdot[hidden] { display: none; }
+
+/* іконки замість символів */
+.arr svg.i { width: .95em; height: .95em; vertical-align: -.15em; opacity: .7; }
+.cal-nav button { display: grid; place-items: center; }
+.cal-nav button svg.i { width: 22px; height: 22px; vertical-align: 0; }
+.close { display: grid; place-items: center; }
+.close svg.i { width: 20px; height: 20px; vertical-align: 0; stroke-width: 2.2; }
+.viewer .close svg.i { width: 22px; height: 22px; }
+.viewer .vprev, .viewer .vnext { display: grid; place-items: center; }
+.viewer .vprev svg.i, .viewer .vnext svg.i { width: 28px; height: 28px; vertical-align: 0; }
+.viewer .vprev[hidden], .viewer .vnext[hidden] { display: none; }
+.badge-x { display: inline-grid; place-items: center; }
+.badge-x svg.i { width: 13px; height: 13px; vertical-align: 0; stroke-width: 2.4; }
+.strip-tog { display: grid; place-items: center; transition: transform .2s ease; }
+.strip-tog svg.i { width: 18px; height: 18px; vertical-align: 0; }
+.back { display: inline-flex; align-items: center; gap: 2px; }
+.back svg.i { width: 18px; height: 18px; vertical-align: 0; }
+
+/* ---------- стримані анімації ---------- */
+/* натиск — легке «втискання» */
+button, .tile, .bnav a, .debt-line, .done-btn, .visits-btn, .ring, .drawer nav a { transition: transform .12s ease, background-color .15s, color .15s, box-shadow .15s, border-color .15s; }
+button:active:not(:disabled), .tile:active, .bnav a:active, .debt-line:active, .done-btn:active, .visits-btn:active, .drawer nav a:active { transform: scale(.97); }
+.check:active { transform: scale(.88); }
+
+/* нижня панель: «пігулка» активної вкладки зʼявляється плавно */
+@media (max-width: 759px) {
+  .bnav a.on::before { animation: pill .25s cubic-bezier(.2, .9, .3, 1.2); }
+  .bnav a.on svg { animation: nudge .3s ease; }
+}
+@keyframes pill { from { transform: scaleX(.5); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes nudge { 40% { transform: translateY(-2px); } }
+
+/* картки на новій сторінці виринають одна за одною */
+#app.fade .card, #app.fade .tile, #app.fade .empty.fun { animation: rise .32s ease-out both; }
+#app.fade .card:nth-of-type(2), #app.fade .tile:nth-child(2) { animation-delay: .03s; }
+#app.fade .card:nth-of-type(3), #app.fade .tile:nth-child(3) { animation-delay: .06s; }
+#app.fade .card:nth-of-type(4), #app.fade .tile:nth-child(4) { animation-delay: .09s; }
+#app.fade .card:nth-of-type(5), #app.fade .tile:nth-child(5) { animation-delay: .12s; }
+#app.fade .card:nth-of-type(n+6), #app.fade .tile:nth-child(n+6) { animation-delay: .15s; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* картки й плитки на компʼютері трохи піднімаються під курсором */
+@media (hover: hover) {
+  .card, .tile { transition: transform .18s ease, box-shadow .18s ease; }
+  .tile:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgb(0 0 0 / .08); }
+}
+
+/* кільце тижня заповнюється */
+.ring .rf { animation: ring-in .7s cubic-bezier(.3, .8, .3, 1) both; }
+@keyframes ring-in { from { stroke-dashoffset: var(--len); } to { stroke-dashoffset: var(--off); } }
+
+/* календар: вибір дня плавно */
+.grid .d { transition: background-color .15s, color .15s, transform .12s; }
+.grid .d.sel { animation: sel-pop .22s ease-out; }
+@keyframes sel-pop { from { transform: scale(.9); } to { transform: none; } }
+
+/* розгортання подробиць і оголошень */
+.strip-more.anim, details.mini[open] .mini-body { animation: open-down .2s ease-out; }
+@keyframes open-down { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* перегляд фото */
+.viewer:not([hidden]) { animation: fade-in .18s ease-out; }
+.viewer img { animation: zoom-in .22s ease-out; }
+@keyframes zoom-in { from { transform: scale(.94); opacity: .3; } to { transform: none; opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; }
+}
+.ai-time { display: block; margin-top: 6px; font-size: 12px; opacity: .75; }
+
+/* Тести й Проєкти */
+.ev-kind { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.ev-kind.k-control { background: var(--danger-soft); color: var(--danger); }
+.ev-kind.k-self { background: color-mix(in srgb, #f08c00 16%, var(--card)); color: #d9480f; }
+.ev-kind.k-online { background: var(--admin-soft); color: var(--admin); }
+.ev-kind.k-project { background: color-mix(in srgb, #7048e8 14%, var(--card)); color: #7048e8; }
+.ev-card .dates.soon { color: var(--danger); font-weight: 700; }
+.ev-title { margin: 6px 0 2px; font-size: 17px; font-weight: 650; }
+.ev-card .hw { color: var(--muted); font-size: 15px; }
+.ev-card.is-done .ev-title { text-decoration: line-through; opacity: .6; }
+.ev-members { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.ev-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 8px 12px; border-radius: 10px;
+  background: var(--accent); color: var(--on-accent); text-decoration: none; font-weight: 600; font-size: 15px; }
+.ev-past { margin-top: 16px; }
+.ev-past > summary { cursor: pointer; font-weight: 650; color: var(--muted); padding: 8px 0; }
+.ev-past[open] > summary { margin-bottom: 6px; }
+.own-h { display: flex; align-items: center; gap: 8px; margin-top: 28px; }
+.own-list { display: grid; gap: 10px; }
+.own { position: relative; background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px 16px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.own b { font-size: 17px; }
+.own p { margin: 4px 0 8px; color: var(--muted); font-size: 15px; }
+.own a { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; text-decoration: none; }
+.own .del { position: absolute; top: 10px; right: 10px; }
+.seg-wrap { flex-wrap: wrap; }
+.ev-mini .mt b { color: var(--danger); }
+.unlock-t { flex: 1 1 220px; }
+.add-form { min-width: 0; }
+.add-form label, .add-form .row2 > * { min-width: 0; }
+.add-form input, .add-form select, .add-form textarea { width: 100%; min-width: 0; box-sizing: border-box; }
+.add-form .chk input { width: auto; }
+.seg.seg-wrap { display: flex; flex-wrap: wrap; max-width: 100%; box-sizing: border-box; }
+.drawer nav a.settings-link { display: flex; align-items: center; justify-content: center; }
+.drawer nav a.settings-link .ico { width: auto; margin-right: 8px; }
+
+/* ---------- Адмінпанель ---------- */
+.adm-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
+  background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px 16px; margin-bottom: 12px;
+  border-top: 3px solid var(--admin); }
+.adm-badge { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--admin-soft); color: var(--admin); }
+.adm-badge svg.i { width: 24px; height: 24px; vertical-align: 0; }
+.adm-title { min-width: 0; }
+.adm-title h1 { margin: 0; font-size: 22px; line-height: 1.2; }
+.adm-title p { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.adm-title p svg.i { width: 14px; height: 14px; }
+.adm-acts { display: flex; gap: 6px; }
+.adm-acts button { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-size: 15px; font-weight: 650; cursor: pointer; }
+.adm-acts svg.i { width: 16px; height: 16px; vertical-align: 0; }
+.adm-gdz.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.adm-out:hover { border-color: var(--danger); color: var(--danger); }
+@media (max-width: 480px) {
+  .adm-head { grid-template-columns: auto 1fr; }
+  .adm-acts { grid-column: 1 / -1; }
+  .adm-acts button { flex: 1; justify-content: center; }
+}
+
+.adm-nav { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 0 0 16px; }
+.adm-nav button { position: relative; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-size: 15px; font-weight: 600;
+  text-align: left; cursor: pointer; }
+.adm-nav button svg.i { width: 20px; height: 20px; vertical-align: 0; color: var(--muted); flex: none; }
+.adm-nav button span { flex: 1; min-width: 0; line-height: 1.25; }
+.adm-nav button em { font-style: normal; font-size: 12px; font-weight: 700; color: var(--muted); background: var(--bg);
+  border-radius: 20px; padding: 1px 8px; white-space: nowrap; }
+.adm-nav button[aria-selected="true"] { border-color: var(--admin); background: var(--admin-soft); color: var(--admin); }
+.adm-nav button[aria-selected="true"] svg.i { color: var(--admin); }
+.adm-nav button[aria-selected="true"] em { background: var(--card); color: var(--admin); }
+@media (min-width: 760px) { .adm-nav { grid-template-columns: repeat(5, 1fr); } }
+
+.adm-sec { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 16px; margin-bottom: 12px; }
+.adm-sec > h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 17px; }
+.adm-sec > h2 svg.i { color: var(--muted); }
+.adm-sec .edit-form { margin-top: 0; }
+.adm-sec .iplist li { background: var(--bg); }
+.adm-sec .blockform input, .adm-sec .chan-form textarea { background: var(--bg); }
+.adm-sec.danger { border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--line)); box-shadow: none; }
+.adm-sec.danger > h2, .adm-sec.danger > h2 svg.i { color: var(--danger); }
+.adm-sec .small-note:last-child { margin-bottom: 0; }
+.admin-body > h2 { margin-top: 20px; }
+.admin-body .card.trash .restore { margin-top: 6px; }
+@media (min-width: 760px) {
+  .adm-nav button { flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px; min-height: 84px; }
+  .adm-nav button em { position: absolute; top: 12px; right: 12px; }
+}
+.adm-sec .edit-btns button[type="submit"], .adm-sec .chan-form .set-btn {
+  background: var(--admin); color: var(--on-admin); border-color: transparent; font-weight: 700; padding: 10px 18px; }
+.adm-sec .edit-btns button[type="submit"]:disabled { opacity: .6; }
+.adm-sec .blockform button[type="submit"]:first-of-type { border-color: var(--admin); color: var(--admin); }
+
+/* «Ще»: шестерня біля заголовка */
+.drawer-h .dh-l { display: flex; align-items: center; gap: 6px; }
+.dh-set { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; color: var(--muted); text-decoration: none; }
+.dh-set svg.i { width: 20px; height: 20px; vertical-align: 0; }
+.dh-set:hover, .dh-set.on { background: var(--accent-soft); color: var(--accent); }
+
+/* Налаштування: велика кнопка Адмінпанель */
+.set-admin { display: flex; align-items: center; gap: 12px; margin: 4px 0 18px; padding: 14px 16px; border-radius: var(--r);
+  background: var(--admin); color: var(--on-admin); text-decoration: none; box-shadow: var(--shadow); }
+.set-admin .sa-ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: rgb(255 255 255 / .18); flex: none; }
+.set-admin .sa-ic svg.i { width: 22px; height: 22px; vertical-align: 0; }
+.set-admin .sa-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.set-admin b { font-size: 17px; }
+.set-admin small { font-size: 13px; opacity: .85; }
+.set-admin > svg.i { width: 20px; height: 20px; vertical-align: 0; }
+.set-admin:active { transform: scale(.98); }
+
+/* смужка режиму під шапкою, на всю ширину */
+.top { flex-wrap: wrap; }
+.modebar { display: flex; flex-basis: 100%; order: 10; margin: 10px -16px 0; }
+.modebar[hidden] { display: none; }
+@media (min-width: 760px) { .modebar { margin-top: 0; } }
+@media (max-width: 759px) { .top:has(.modebar:not([hidden])) { padding-bottom: 0; } }
+.modebar .mb { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; height: 30px;
+  font-size: 13px; font-weight: 700; vertical-align: 0; }
+.modebar .mb[hidden] { display: none; }
+.modebar .mb-admin { background: var(--admin-soft); color: var(--admin); }
+.modebar .mb-gdz { background: var(--accent-soft); color: var(--accent); }
+.modebar .mb i { width: 7px; height: 7px; box-shadow: none; }
+.modebar .mb a { color: inherit; text-decoration: none; }
+.modebar .badge-x { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; opacity: .8; }
+.modebar .badge-x:hover { opacity: 1; background: rgb(0 0 0 / .06); }
+.top { row-gap: 0; }
+.modebar { flex-basis: calc(100% + 32px); max-width: none; }
+
+/* нотатки до ДЗ */
+.note { display: flex; align-items: flex-start; gap: 8px; width: 100%; margin: 8px 0 0; padding: 8px 10px; border: 0; border-radius: 10px;
+  background: color-mix(in srgb, #f59f00 14%, var(--card)); color: var(--text); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.note svg.i { color: #e67700; margin-top: 2px; vertical-align: 0; flex: none; }
+.note span { white-space: pre-line; }
+.note-form { margin-top: 8px; }
+.note-form textarea { width: 100%; box-sizing: border-box; border: 1px solid #f59f00; border-radius: 10px; padding: 8px 10px;
+  background: color-mix(in srgb, #f59f00 8%, var(--card)); color: var(--text); font: inherit; font-size: 15px; resize: vertical; }
+.note-btns { display: flex; gap: 6px; margin-top: 6px; }
+.note-btns button { border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 15px; cursor: pointer; }
+.note-btns button[type="submit"] { background: #f59f00; border-color: #f59f00; color: #fff; font-weight: 700; }
+
+/* оцінки */
+.grade-form { display: grid; grid-template-columns: 1fr 80px auto; gap: 8px; margin: 4px 0 16px; }
+.grade-form select, .grade-form input { min-width: 0; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 10px; padding: 10px; font: inherit; font-size: 16px; }
+.grade-form button { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 10px; padding: 0 14px; background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 700; cursor: pointer; }
+.grade-form button svg.i { vertical-align: 0; }
+.g-total { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px 16px; margin-bottom: 12px; }
+.g-total span { color: var(--muted); font-weight: 600; }
+.g-total b { font-size: 32px; line-height: 1; }
+.g-total small { color: var(--muted); }
+.g-card { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 12px 16px; margin-bottom: 10px; border-left: 4px solid var(--c); }
+.g-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.g-avg { font-size: 22px; font-weight: 750; }
+.g-avg small { font-size: 13px; color: var(--muted); font-weight: 600; margin-left: 6px; }
+.g-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.g-chip { min-width: 34px; height: 30px; border-radius: 8px; border: 0; font: inherit; font-weight: 700; cursor: pointer; }
+.g-chip.ghi { background: var(--admin-soft); color: var(--admin); }
+.g-chip.gmid { background: var(--accent-soft); color: var(--accent); }
+.g-chip.glo { background: color-mix(in srgb, #f08c00 16%, var(--card)); color: #d9480f; }
+.g-chip.gbad { background: var(--danger-soft); color: var(--danger); }
+.g-hint { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+
+/* до канікул */
+.break-line { display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin: 0 0 12px; border-radius: var(--r);
+  background: color-mix(in srgb, #12b886 12%, var(--card)); color: color-mix(in srgb, #087f5b 85%, var(--text)); font-size: 15px; }
+.break-line svg.i { width: 20px; height: 20px; flex: none; vertical-align: 0; }
+.minis .break-line { margin: 0; }
+
+/* навантаження тижня */
+.load { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 12px 14px; margin: 12px 0; }
+.load h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; }
+.load-bars { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; height: 140px; }
+.load-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; border: 0; background: transparent;
+  color: var(--muted); font: inherit; cursor: pointer; padding: 0; border-radius: 10px; min-width: 0; }
+.load-bar { display: flex; flex-direction: column-reverse; width: 70%; max-width: 44px; min-height: 4px; border-radius: 8px; overflow: hidden;
+  background: var(--line); transition: height .35s ease; }
+.load-bar i { flex: 1; background: var(--c); border-top: 1px solid var(--card); }
+.load-bar i.lt { background: var(--danger); }
+.load-n { font-size: 13px; font-weight: 700; color: var(--text); min-height: 1em; }
+.load-d { font-size: 13px; font-weight: 600; }
+.load-col.sel .load-d { color: var(--accent); }
+.load-col.today .load-d { text-decoration: underline; text-underline-offset: 3px; }
+
+/* опитування */
+.poll { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px 16px; margin: 12px 0; border-top: 3px solid #7048e8; }
+.poll-h { display: flex; gap: 8px; align-items: flex-start; font-size: 17px; margin-bottom: 10px; }
+.poll-h svg.i { color: #7048e8; flex: none; margin-top: 3px; vertical-align: 0; }
+.poll-opts { display: grid; gap: 6px; }
+.poll-o { position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text);
+  font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.poll-o::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--p); background: color-mix(in srgb, #7048e8 14%, transparent); transition: width .4s ease; }
+.poll-o > span { position: relative; display: inline-flex; align-items: center; gap: 6px; }
+.poll-o.mine { border-color: #7048e8; font-weight: 700; }
+.poll-o.mine svg.i { color: #7048e8; vertical-align: 0; }
+.poll-o:disabled { cursor: default; }
+.po-n { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.poll-f { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+.poll.closed { border-top-color: var(--line); }
+.poll-adm { display: flex; gap: 6px; margin-top: 8px; }
+.poll-adm button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
+.poll-adm button[data-pdel]:hover { border-color: var(--danger); color: var(--danger); }
+
+/* Налаштування: Telegram-нагадування; підказка про конспекти */
+.set-tg, .konsp-hint { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r); text-decoration: none; }
+.set-tg { margin: -8px 0 18px; background: var(--accent-soft); color: var(--accent); }
+.set-tg span, .konsp-hint span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.set-tg small { font-size: 13px; color: var(--muted); }
+.set-tg svg.i, .konsp-hint svg.i { width: 20px; height: 20px; flex: none; vertical-align: 0; }
+.konsp-hint { display: flex; margin-top: 12px; border: 1px dashed var(--line); color: var(--muted); font-size: 15px; }
+.konsp-hint span { display: block; }
+.konsp-hint b { color: var(--accent); }
+/* шапка картки ДЗ в один рядок: довга назва предмета скорочується, іконки не переносяться */
+.card .head:has(.rem) { flex-wrap: nowrap; }
+.card .head:has(.rem) .subj { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .head:has(.rem) .dates { white-space: nowrap; }
+.card .head .rem { width: 28px; height: 28px; margin: -4px -4px -4px 0; }
+
+/* акаунт */
+.acc { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 14px 16px; margin: 4px 0 12px;
+  background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); }
+.acc-ava { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+  font-size: 20px; font-weight: 800; }
+.acc-ava svg.i { width: 22px; height: 22px; vertical-align: 0; }
+.acc.on .acc-ava { background: var(--accent); color: var(--on-accent); }
+.acc-t { min-width: 0; display: flex; flex-direction: column; }
+.acc-t b { font-size: 17px; }
+.acc-t small { font-size: 13px; color: var(--muted); }
+.acc-t small svg.i { width: 13px; height: 13px; }
+.acc-btn { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 10px; padding: 9px 14px; background: #229ed9; color: #fff;
+  font: inherit; font-weight: 700; cursor: pointer; text-decoration: none; white-space: nowrap; }
+.acc-btn svg.i { vertical-align: 0; }
+.acc-btn.ghost { background: var(--bg); color: var(--text); border: 1px solid var(--line); font-weight: 600; }
+.acc-wait .acc-ava { background: #229ed9; color: #fff; animation: pulse 1.6s infinite; }
+.acc-rem { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+.acc-rem > span { flex: 1; min-width: 0; display: flex; flex-direction: column; font-weight: 600; }
+.acc-rem > span svg.i { color: var(--accent); }
+.acc-rem small { font-weight: 400; font-size: 13px; color: var(--muted); }
+.acc-rem input[type="time"] { border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); padding: 6px; font: inherit; }
+
+/* хто голосував */
+.link-btn { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
+.voters { display: grid; gap: 8px; margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bg); }
+.vo b { font-size: 15px; }
+.vo-names { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.vo-names span { font-size: 13px; padding: 2px 8px; border-radius: 20px; background: color-mix(in srgb, #7048e8 12%, var(--card)); color: #5f3dc4; }
+.vo small { display: block; font-size: 12px; color: var(--muted); }
+
+/* таблиця команд в Інфо */
+.cmds { width: 100%; border-collapse: collapse; font-size: 14px; margin: 6px 0 14px; }
+.cmds td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.cmds td:first-child { white-space: nowrap; width: 1%; }
+.cmds .cg th { text-align: left; padding: 12px 8px 4px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+@media (max-width: 520px) { .cmds td:first-child { white-space: normal; } }
+
+/* нотатки для класу */
+.cmts { margin-top: 8px; }
+.cmts ul { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 4px; }
+.cmts li { position: relative; padding: 6px 30px 6px 10px; border-radius: 10px; background: var(--bg); font-size: 14px; line-height: 1.4; }
+.cmts li b { color: var(--accent); margin-right: 4px; }
+.cm-at { display: block; font-size: 11px; color: var(--muted); }
+.cm-del { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; display: grid; place-items: center; border: 0; border-radius: 6px;
+  background: transparent; color: var(--muted); cursor: pointer; }
+.cm-del svg.i { width: 13px; height: 13px; vertical-align: 0; }
+.cm-add { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.cm-add svg.i { width: 15px; height: 15px; vertical-align: 0; }
+.cm-form { display: flex; gap: 6px; }
+.cm-form input { flex: 1; min-width: 0; border: 1px solid var(--accent); border-radius: 10px; padding: 8px 10px; background: var(--bg); color: var(--text); font: inherit; font-size: 15px; }
+.cm-form button { border: 0; border-radius: 10px; padding: 0 12px; background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.cm-form button:disabled, .cm-form input:disabled { opacity: .7; }
+.cm-hint { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+
+/* пошук у підручниках */
+.book-hits { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.book-hits a { display: block; padding: 10px 14px; border-radius: 12px; background: var(--card); box-shadow: var(--shadow);
+  border-left: 4px solid var(--c); text-decoration: none; color: var(--text); }
+.book-hits b { display: flex; justify-content: space-between; gap: 8px; font-size: 15px; }
+.book-hits b span { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); white-space: nowrap; font-size: 13px; }
+.book-hits small { display: block; margin-top: 4px; font-size: 13px; color: var(--muted); }
+
+/* статистика */
+.st-kpi { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+@media (min-width: 600px) { .st-kpi { grid-template-columns: repeat(4, 1fr); } }
+.st-kpi div { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 12px 14px; display: flex; flex-direction: column; }
+.st-kpi b { font-size: 26px; line-height: 1.1; }
+.st-kpi span { font-size: 13px; color: var(--muted); }
+.st-bars { display: grid; grid-template-columns: repeat(14, 1fr); gap: 4px; height: 130px; }
+.st-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; min-width: 0; }
+.st-bar { position: relative; width: 100%; max-width: 22px; min-height: 3px; border-radius: 5px; background: var(--accent-soft); overflow: hidden; }
+.st-bar i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--accent); }
+.st-n, .st-d { font-size: 11px; color: var(--muted); }
+.st-n { color: var(--text); font-weight: 700; }
+.st-tabs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.st-tabs li { display: grid; grid-template-columns: 120px 1fr 40px; align-items: center; gap: 8px; font-size: 14px; }
+.st-tabs i { height: 10px; border-radius: 5px; background: var(--accent); min-width: 2px; }
+.st-tabs b { text-align: right; }
+
+/* тема: перемикач у 4 варіанти */
+.set-theme { flex-wrap: wrap; }
+.set-theme .seg { flex-wrap: wrap; }
+.acc:not(.on):not(.acc-wait) { grid-template-columns: auto 1fr; }
+.acc:not(.on):not(.acc-wait) .acc-btn { grid-column: 1 / -1; justify-content: center; padding: 11px 14px; }
