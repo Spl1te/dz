@@ -2611,15 +2611,24 @@ async function checkVersion() {
   try {
     const v = (await fetch(`api/version?t=${Date.now()}`, { cache: "no-store" }).then((r) => r.json())).version;
     if (!v) return;
-    if (SITE_VER === null) { SITE_VER = v; return; }
-    if (v !== SITE_VER && !document.querySelector(".upbar")) {
-      const bar = document.createElement("div");
-      bar.className = "upbar"; bar.setAttribute("role", "status");
-      bar.innerHTML = `<span>${ic("refresh")} Сайт оновлено</span><button type="button">Перезавантажити</button>`;
-      bar.querySelector("button").addEventListener("click", () => location.reload());
-      document.body.append(bar);
+    if (SITE_VER === null) {
+      SITE_VER = v;
+      // код береться з памʼяті телефона: якщо на сервері вже новіша версія — запропонувати перезавантажити
+      let prev = null;
+      try { prev = localStorage.getItem("dz-ver"); localStorage.setItem("dz-ver", v); } catch { /* */ }
+      if (prev && prev !== v) showUpdateBar();
+      return;
     }
+    if (v !== SITE_VER) { try { localStorage.setItem("dz-ver", v); } catch { /* */ } showUpdateBar(); }
   } catch { /* немає звʼязку */ }
+}
+function showUpdateBar() {
+  if (document.querySelector(".upbar")) return;
+  const bar = document.createElement("div");
+  bar.className = "upbar"; bar.setAttribute("role", "status");
+  bar.innerHTML = `<span>${ic("refresh")} Сайт оновлено</span><button type="button">Перезавантажити</button>`;
+  bar.querySelector("button").addEventListener("click", () => location.reload());
+  document.body.append(bar);
 }
 checkVersion();
 setInterval(checkVersion, 60000);
@@ -2696,19 +2705,58 @@ function loadClassLive() {
       VISITS = v && typeof v === "object" && !Array.isArray(v) ? v : {}; AIA = ai && typeof ai === "object" ? ai : {};
     });
 }
-Promise.all([get("data/homework.json", []), get("data/school.json", null), get("data/files.json", []), get("data/alerts.json", null), get("data/class.json", null), loadClassLive()])
-  .then(([hw, school, files, al, cls]) => {
-    if (cls && Array.isArray(cls.seats)) CLASS = cls;
-    RAW = Array.isArray(hw) ? hw : [];
-    FILES = Array.isArray(files) ? files : [];
-    if (school) SCHOOL = Object.assign(SCHOOL, school);
-    if (okAlerts(al)) ALERTS = al;
-    applyPref();
+// ---------- запуск: спершу збережена копія (миттєво), потім свіжі дані одним запитом ----------
+function applyBoot(b) {
+  if (!b || typeof b !== "object") return false;
+  if (b.class && Array.isArray(b.class.seats)) CLASS = b.class;
+  RAW = Array.isArray(b.homework) ? b.homework : RAW;
+  FILES = Array.isArray(b.files) ? b.files : FILES;
+  if (b.school) SCHOOL = Object.assign(SCHOOL, b.school);
+  if (okAlerts(b.alerts)) ALERTS = b.alerts;
+  if (Array.isArray(b.announcements)) ANNS = b.announcements;
+  if (b.lunch && typeof b.lunch === "object") LUNCH = b.lunch;
+  if (b.visits && typeof b.visits === "object" && !Array.isArray(b.visits)) VISITS = b.visits;
+  if (b.alert_ai && typeof b.alert_ai === "object") AIA = b.alert_ai;
+  if (Array.isArray(b.events)) EVENTS = b.events;
+  applyPref();
+  return true;
+}
+let BOOTED = false;
+function firstShow() {
+  if (BOOTED) return;
+  BOOTED = true;
+  if (!PREF) showSetup();
+  if (ADMIN_TOKEN) adminApi("check").catch(() => {}); // прострочений ключ — тихо вийти з адмін-режиму
+  if (GDZ_TOKEN) gdzApi("check", {}).catch(() => {});
+}
+(() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem("dz-boot") || "null");
+    if (saved && applyBoot(saved.b)) {
+      NET.at = saved.at || 0;
+      render();
+      firstShow();
+    }
+  } catch { /* немає збереженої копії */ }
+})();
+async function boot() {
+  const b = await get("data/boot.json", null);
+  if (b && applyBoot(b)) {
+    try { localStorage.setItem("dz-boot", JSON.stringify({ at: Date.now(), b })); } catch { /* замало місця — не страшно */ }
+    safeRender();
+    firstShow();
+  } else if (!BOOTED) {
+    // старий сервер або немає звʼязку — як раніше, окремими запитами
+    const [hw, school, files, al, cls] = await Promise.all([get("data/homework.json", []), get("data/school.json", null),
+      get("data/files.json", []), get("data/alerts.json", null), get("data/class.json", null)]);
+    applyBoot({ homework: hw, school, files, alerts: al, class: cls });
     render();
-    if (!PREF) showSetup();
-    if (ADMIN_TOKEN) adminApi("check").catch(() => {}); // прострочений ключ — тихо вийти з адмін-режиму
-    if (GDZ_TOKEN) gdzApi("check", {}).catch(() => {});
-  });
+    firstShow();
+  }
+  // опитування й нотатки класу залежать від акаунта — довантажуються після показу
+  loadClassLive().then(() => safeRender());
+}
+boot();
 app.addEventListener("input", (ev) => {
   if (ev.target.id === "book-q") { bookSearch(ev.target.value); return; }
   if (ev.target.id !== "hw-q") return;
