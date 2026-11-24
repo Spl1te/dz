@@ -321,8 +321,15 @@ function card(e, { showSubj = true } = {}) {
   const datesFull = `задано ${short(e.given)}` + (e.due ? ` → здати ${short(e.due)}` : "");
   const photos = (e.photos || []).map((p) =>
     `<button data-img="${esc(p)}" aria-label="Відкрити фото"><img src="${esc(p)}" loading="lazy" alt="Фото дошки"></button>`).join("");
-  const tasks = e.tasks || [];
+  const rd = e.read && (e.read.pages || []).length ? e.read : null;
+  const tasks = (e.tasks || []).filter((t) => !rd || (t.images || []).length); // сторінки «прочитати» — у «Тексті підручника»
+  const pgs = rd ? rd.pages.map((p) => p.page).filter(Boolean) : [];
+  const range = pgs.length ? (pgs.length > 1 && pgs[pgs.length - 1] - pgs[0] === pgs.length - 1 ? `с. ${pgs[0]}–${pgs[pgs.length - 1]}` : `с. ${pgs.join(", ")}`) : "";
+  const readHtml = rd ? `<details class="read-pages"><summary>${ic("book")} Текст підручника${range ? ` · ${range}` : ""}<small>${rd.kind === "read" ? "що треба прочитати" : "головне з теми"}</small></summary>
+      ${rd.pages.map((p) => `<button class="crop page" data-img="${esc(p.img)}" aria-label="Збільшити сторінку"><img src="${esc(p.img)}" loading="lazy" alt="Сторінка ${p.page || p.pdf_page}"></button>
+        <a class="pdf-link" href="${bookUrl(p.book, p.pdf_page)}" target="_blank" rel="noopener">с. ${p.page || p.pdf_page} — відкрити в підручнику ${ic("ext")}</a>`).join("")}</details>` : "";
   let taskHtml = "";
+  if (!tasks.length && rd) taskHtml = `<div class="tasks solo">${readHtml}</div>`;
   if (tasks.length) {
     const body = tasks.map((t) => {
       const imgs = (t.images || []).map((p) =>
@@ -330,7 +337,7 @@ function card(e, { showSubj = true } = {}) {
       const link = t.book ? `<a class="pdf-link" href="${bookUrl(t.book, t.page)}" target="_blank" rel="noopener">відкрити в підручнику ${ic("ext")}</a>` : "";
       return `<div class="task"><div class="task-h"><b>${esc(cap(t.label))}</b>${link}</div>${imgs}</div>`;
     }).join("");
-    taskHtml = `<details class="tasks"><summary>Завдання <span>${tasks.length}</span></summary>${body}</details>`;
+    taskHtml = `<details class="tasks"><summary>Завдання <span>${tasks.length}</span></summary>${body}${readHtml}</details>`;
   }
   const done = isDone(e), g = grpLabel(e);
   const del = ADMIN_TOKEN ? `<span class="adm-btns"><button type="button" class="del" data-edit="${esc(e.id)}" aria-label="Редагувати ДЗ">${ic("pen")}</button><button type="button" class="del" data-del="${esc(e.id)}" aria-label="Видалити ДЗ">${ic("trash")}</button></span>` : "";
@@ -1721,10 +1728,12 @@ function drawSheet() {
   sheet.hidden = !SHEET;
   document.body.classList.toggle("no-scroll", !!SHEET || !!GDZ.open);
   if (!SHEET) { sheet.innerHTML = ""; return; }
-  sheet.innerHTML = `<div class="modal-card" role="dialog" aria-modal="true" aria-label="${esc(SHEET.title)}">
+  keepScroll(sheet, () => {
+    sheet.innerHTML = `<div class="modal-card" role="dialog" aria-modal="true" aria-label="${esc(SHEET.title)}">
     <div class="modal-h" style="--c:${SHEET.color || "var(--accent)"}"><b>${esc(SHEET.title)}</b>
       <button type="button" class="close" data-sheet-close aria-label="Закрити">${ic("x")}</button></div>
     <div class="sheet-body">${sheetBody()}</div></div>`;
+  });
 }
 function sheetBody() {
   const S = SHEET;
@@ -2130,6 +2139,7 @@ function settingsPage() {
       <div class="set-row set-theme"><span>Колір</span><div class="accents">${[["blue", "Синій"], ["green", "Зелений"], ["purple", "Фіолетовий"], ["pink", "Рожевий"], ["orange", "Помаранчевий"]]
         .map(([v, t]) => `<button type="button" class="acc-dot a-${v}" data-accent-set="${v}" aria-pressed="${(SET.accent || "blue") === v}" aria-label="${t}" title="${t}"></button>`).join("")}</div></div>
       ${sw("bigFont", "Великий шрифт", "Текст і кнопки трохи більші")}
+      ${ADMIN_TOKEN || GDZ_TOKEN ? sw("noTint", "Звичайний фон у режимах", `Без ${ADMIN_TOKEN ? "зеленуватого" : "синюватого"} відтінку сторінки, поки ввімкнено ${ADMIN_TOKEN ? "адмін-режим" : "режим ГДЗ"}`) : ""}
       ${sw("hideModebar", "Сховати смужку режиму", "Плашки «Адмін-режим», «Режим ГДЗ», «ШІ» під шапкою. Режими працюють, як і раніше")}</div>
     <h2>Головна</h2><div class="set-list">
       ${sw("showDebts", "Показувати борги на головній", `Усі борги завжди є в ${ic("dots")} ${ic("arrow")} Борги`)}
@@ -2205,7 +2215,7 @@ const keyGet = (kind, name) => { try { return store(kind).getItem(name); } catch
 const keySet = (kind, name, v) => { try { v ? store(kind).setItem(name, v) : store(kind).removeItem(name); } catch { /* приватний режим */ } };
 let GDZ_TOKEN = keyGet("gdz", "dz-gdz");
 let AI_TOKEN = keyGet("ai", "dz-ai");
-const GDZ_TAGS = ["Алгебра", "Геометрія", "УкрМова", "ІсторіяУкр"]; // для них сайт шукає готові відповіді
+const GDZ_TAGS = ["Алгебра", "Геометрія", "УкрМова", "ІсторіяУкр", "Фізика", "Хімія", "УкрЛіт", "ВсесвІст", "Нім", "Геогр", "Інформатика"]; // для них сайт шукає готові відповіді (усе, крім англійської й предметів без ГДЗ)
 let GDZ = { open: null, find: null, ai: null, aiLogin: false, poll: null };
 
 function gdzDue() {
@@ -2258,6 +2268,9 @@ function gdzModalHtml() {
   else if (f) {
     const res = f.results || [];
     const sites = [...new Set(res.map((r) => r.site || 1))].sort();
+    // сайти, де відповіді показує JavaScript, — плашкою-посиланням «Сайт N»
+    const linkSites = (f.links || []).filter((l) => l.auto === false).map((l) =>
+      `<a class="gdz-site gdz-site-h gdz-site-link" href="${esc(l.url)}" target="_blank" rel="noopener"><b>Сайт ${l.site}</b><span>${esc(l.source)} · відкрити й знайти ${esc((f.refs || []).join(", ") || "вправу")}</span>${ic("ext")}</a>`).join("");
     found = res.length ? sites.map((k) => {
       const list = res.filter((r) => (r.site || 1) === k), open = !!GDZ.site[k], best = Math.max(0, ...list.map((r) => r.votes || 0));
       return `<section class="gdz-site${open ? " open" : ""}"><button type="button" class="gdz-site-h" data-gsite="${k}" aria-expanded="${open}">
@@ -2269,7 +2282,7 @@ function gdzModalHtml() {
     }).join("")
       : `<p class="muted">${f.refs && f.refs.length ? `Не знайшов ${esc(f.refs.join(", "))} на сайтах ГДЗ.` : "У ДЗ немає номерів вправ — нема що шукати."}
           ${(f.links || []).map((l) => `<br><a href="${esc(l.url)}" target="_blank" rel="noopener">Відкрити ГДЗ на ${esc(l.source)} ${ic("ext")}</a>`).join("")}</p>`;
-    if (res.length && f.links) found += `<p class="muted small-note">Ще: ${f.links.map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.source)}</a>`).join(" · ")}</p>`;
+    if (res.length) found += linkSites;
   }
   let ai = "";
   const a = GDZ.ai;
@@ -2307,9 +2320,18 @@ function gdzModalHtml() {
 const modal = document.createElement("div");
 modal.className = "modal"; modal.hidden = true;
 document.body.appendChild(modal);
+// Перемалювати шматок сторінки, не збиваючи прокрутку всередині (вікна АвтоГДЗ, пояснення, чат ШІ)
+function keepScroll(root, fn) {
+  const key = (el) => el.tagName + "." + el.className;
+  const saved = [...root.querySelectorAll("*")].filter((el) => el.scrollTop > 0).map((el) => [key(el), el.scrollTop]);
+  fn();
+  if (!saved.length) return;
+  const all = [...root.querySelectorAll("*")];
+  for (const [k, top] of saved) { const el = all.find((x) => key(x) === k); if (el) el.scrollTop = top; }
+}
 function renderModal() {
   modal.hidden = !GDZ.open;
-  modal.innerHTML = GDZ.open ? gdzModalHtml() : "";
+  keepScroll(modal, () => { modal.innerHTML = GDZ.open ? gdzModalHtml() : ""; });
   document.body.classList.toggle("no-scroll", !!GDZ.open);
 }
 // АвтоГДЗ шукає саме, щойно відкрив ДЗ — без кнопки «Розвʼязати»
@@ -2656,8 +2678,8 @@ function syncChrome(tab) {
   document.getElementById("tutor-link").hidden = !TUTOR_TOKEN;
   document.getElementById("secret-link").hidden = !GDZ_TOKEN;
   document.getElementById("nav-top-gap").hidden = !GDZ_TOKEN && !TUTOR_TOKEN && !ADMIN_TOKEN;
-  document.body.classList.toggle("mode-admin", !!ADMIN_TOKEN);
-  document.body.classList.toggle("mode-gdz", !!GDZ_TOKEN);
+  document.body.classList.toggle("mode-admin", !!ADMIN_TOKEN && !SET.noTint);
+  document.body.classList.toggle("mode-gdz", !!GDZ_TOKEN && !SET.noTint);
   const n = debts().length;
   document.getElementById("debt-cnt").textContent = n && !SET.hideDebtCount ? String(n) : "";
   document.getElementById("more-dot").hidden = !n || !!SET.hideDebtCount;
@@ -2746,12 +2768,20 @@ function render() {
   else if (h === "/projects") { tab = "projects"; html = projectsPage(); }
   else if (h === "/visits" || h.startsWith("/visits/")) { tab = "visits"; html = visitsPage(h.slice(8) || null); }
   else html = home();
+  // та сама вкладка — зберегти прокрутку: поки картинки нового HTML вантажаться, сторінка не «схлопується» вгору
+  const same = tab === LAST_TAB, y = window.scrollY;
+  if (same) app.style.minHeight = app.offsetHeight + "px";
   app.innerHTML = offBar() + html;
+  if (same) {
+    if (Math.abs(window.scrollY - y) > 1) window.scrollTo(window.scrollX, y);
+    clearTimeout(render.mh); render.mh = setTimeout(() => { app.style.minHeight = ""; }, 1500);
+  } else app.style.minHeight = "";
   document.body.classList.toggle("tab-home", tab === "home");
   fitSubjects();
   checkAch();
   if (tab !== LAST_TAB) {
     app.classList.remove("fade"); void app.offsetWidth; app.classList.add("fade"); LAST_TAB = tab;
+    clearTimeout(render.fd); render.fd = setTimeout(() => app.classList.remove("fade"), 700); // анімація — лише при відкритті вкладки
     visited(tab);
     try { fetch("api/hit", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tab, device: DEVICE, token: ACC.token }) }).catch(() => {}); } catch { /* */ }
