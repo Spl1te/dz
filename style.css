@@ -1486,3 +1486,35 @@ html.big #app, html.big .drawer, html.big .modal-card, html.big .bnav { zoom: 1.
 .card-tools .adm-btns { display: inline-flex; gap: 4px; margin-left: 4px; }
 .card-tools .del { width: 34px; height: 30px; }
 p.dstat { margin: 6px 0 0; }
+
+/* ---------- АвтоГДЗ і ШІ-помічник — над «Предметами» ---------- */
+.drawer nav a.nav-gdz { background: color-mix(in srgb, #3b82f6 9%, transparent); }
+.drawer nav a.nav-gdz .ico { color: #3b82f6; }
+.drawer nav a.nav-ai {
+  position: relative; overflow: hidden; color: #8a5a00;
+  background: linear-gradient(135deg, #fff6d6, #ffe7a3 55%, #fff3cc);
+  box-shadow: 0 0 0 1px #f2c94c, 0 2px 12px -2px rgba(242, 178, 30, .45);
+  margin-bottom: 4px;
+}
+.drawer nav a.nav-ai .ico { color: #d99a00; }
+.drawer nav a.nav-ai::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, .7) 50%, transparent 65%);
+  transform: translateX(-100%); animation: ai-shine 4.5s ease-in-out infinite;
+}
+@keyframes ai-shine { 0%, 70% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .drawer nav a.nav-ai::after { animation: none; } }
+.drawer nav a.nav-ai.on { box-shadow: 0 0 0 2px #e0a800, 0 2px 14px -2px rgba(242, 178, 30, .6); color: #6b4500; }
+:root[data-theme="dark"] .drawer nav a.nav-ai, .drawer nav a.nav-ai.dk {
+  color: #ffd66b; background: linear-gradient(135deg, #3a2c08, #4a3608 55%, #33270a);
+  box-shadow: 0 0 0 1px #8a6a12, 0 2px 14px -2px rgba(242, 178, 30, .35);
+}
+:root[data-theme="dark"] .drawer nav a.nav-ai .ico { color: #ffc93c; }
+:root[data-theme="dark"] .drawer nav a.nav-ai::after { background: linear-gradient(110deg, transparent 35%, rgba(255, 220, 120, .18) 50%, transparent 65%); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .drawer nav a.nav-ai { color: #ffd66b; background: linear-gradient(135deg, #3a2c08, #4a3608 55%, #33270a); box-shadow: 0 0 0 1px #8a6a12, 0 2px 14px -2px rgba(242, 178, 30, .35); }
+  :root:not([data-theme="light"]) .drawer nav a.nav-ai .ico { color: #ffc93c; }
+  :root:not([data-theme="light"]) .drawer nav a.nav-ai::after { background: linear-gradient(110deg, transparent 35%, rgba(255, 220, 120, .18) 50%, transparent 65%); }
+}
+.nav-top-gap { height: 1px; background: var(--line, rgba(127,127,127,.2)); margin: 6px 8px 8px; }
+.nav-top-gap[hidden] { display: none; }

@@ -1624,8 +1624,8 @@ function setTutor(t) {
 const saveTutor = () => { try { localStorage.setItem("dz-tutor-chat", JSON.stringify(TUTOR.slice(-40))); } catch { /* */ } };
 function tutorPage() {
   if (!TUTOR_TOKEN) return lockForm("lock", "ШІ-помічник", "Введи пароль ШІ-помічника.");
-  const tips = ["Поясни тему, яку ми зараз проходимо з алгебри", "Що в мене на завтра і з чого почати?", "Підготуй мене до найближчої контрольної", "Перевір мій розвʼязок: …"];
-  return `<h1>ШІ-помічник</h1><p class="sub">Знає ваше ДЗ, тести й підручники. Пояснює, а не просто дає відповіді.</p>
+  const tips = ["Поясни тему, яку ми зараз проходимо з алгебри", "Що в мене на завтра і з чого почати?", "Підготуй мене до найближчої контрольної", "Перевір мій розвʼязок: …", "Підготуй мене до тесту за посиланням: …"];
+  return `<h1>ШІ-помічник</h1><p class="sub">Знає твоє ДЗ, тести й підручники — сам заглядає в потрібні сторінки. Скинь посилання на тест — подивиться й підготує. Пояснює, а не просто дає відповіді.</p>
     <div class="tutor">${TUTOR.length ? TUTOR.map((m) => `<div class="msg ${m.role}">${m.role === "user" ? esc(m.text) : `<div class="md">${mdMath(m.text)}</div>`}</div>`).join("")
       : `<div class="tutor-tips">${tips.map((t) => `<button type="button" class="chip-btn" data-tip="${esc(t)}">${esc(t)}</button>`).join("")}</div>`}
       ${TUTOR_BUSY ? `<p class="gdz-wait"><i class="spin"></i>Думаю… (до хвилини)</p>` : ""}</div>
@@ -1637,7 +1637,7 @@ async function tutorAsk(q) {
   if (!q || TUTOR_BUSY) return;
   TUTOR.push({ role: "user", text: q }); TUTOR_BUSY = true; saveTutor(); render();
   try {
-    const r = await fetch("api/ai/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ttoken: TUTOR_TOKEN, messages: TUTOR }) });
+    const r = await fetch("api/ai/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ttoken: TUTOR_TOKEN, messages: TUTOR, pref: pref() }) });
     const j = await r.json();
     if (j.need_password) { setTutor(null); TUTOR.pop(); throw new Error("Потрібен пароль ще раз"); }
     if (!j.ok) throw new Error(j.error || "Не вдалося");
@@ -2428,7 +2428,7 @@ function infoPage() {
     <ul>
       <li>Біля заголовка «Ще»: ${G} <b>Налаштування</b> і ${ic("info")} <b>Інфо</b>. Лупа ${ic("search")} у шапці — <b>пошук</b> по всьому сайту.</li>
       <li><b>Основне:</b> Предмети · Виконане · Борги · Тривоги · Відвідування · Оцінки.</li>
-      <li><b>Додаткове:</b> Тести · Проєкти · Картки · Досягнення · Файли · Розсадка · Дні народження (+ АвтоГДЗ і ШІ-помічник, якщо увімкнено).</li>
+      <li><b>Додаткове:</b> Тести · Проєкти · Картки · Досягнення · Файли · Розсадка · Дні народження. АвтоГДЗ і ШІ-помічник (золотий), якщо увімкнено, — на самому верху меню, над «Предметами».</li>
       <li><b>Предмети</b> — плитки, пошук ДЗ, сторінка предмета: учитель, найближчі уроки, підручник, файли й конспекти, ДЗ (невиконані / виконані).</li>
       <li><b>Борги</b> — прострочене невиконане ДЗ (від 9.11.2026), фільтр за предметом і кнопка <b>«Виконане все»</b>
         (з вибраним предметом — лише його).</li>
@@ -2443,7 +2443,7 @@ function infoPage() {
       <li><b>Тренувальний тест</b> (на картці контрольної або в «Тестах» за темою) — 5 питань від ШІ за підручником і 3 готові тести з «На Урок».</li>
       <li><b>ШІ-допомога</b> (окремий пароль): «Поясни простіше», тренувальні тести, картки. ШІ пояснює, а не дає готові відповіді,
         і за потреби дивиться в підручник. Ліміт — 40 нових запитів на день на весь клас.</li>
-      <li><b>ШІ-помічник</b> (окремий пароль) — чат, який знає ваше ДЗ, тести й підручники: пояснить тему, підготує до контрольної, перевірить розвʼязок.</li>
+      <li><b>ШІ-помічник</b> (окремий пароль) — чат, який знає ваше ДЗ, тести й підручники: пояснить тему, підготує до контрольної, перевірить розвʼязок. Знає твої підручники й сам відкриває потрібні сторінки; скинь посилання на тест (На Урок, Google Форма) — прочитає питання й допоможе підготуватись.</li>
       <li><b>Досягнення</b> — 40+ значків: серії днів без пропусків, сотні виконаних ДЗ, конспекти, ♥, оцінки, картки, ідеальні тести…</li>
     </ul>
 
@@ -2609,6 +2609,7 @@ function syncChrome(tab) {
   document.getElementById("tutor-badge").hidden = !TUTOR_TOKEN;
   document.getElementById("tutor-link").hidden = !TUTOR_TOKEN;
   document.getElementById("secret-link").hidden = !GDZ_TOKEN;
+  document.getElementById("nav-top-gap").hidden = !GDZ_TOKEN && !TUTOR_TOKEN;
   document.body.classList.toggle("mode-admin", !!ADMIN_TOKEN);
   document.body.classList.toggle("mode-gdz", !!GDZ_TOKEN);
   const n = debts().length;
@@ -2771,7 +2772,10 @@ app.addEventListener("click", (ev) => {
     return;
   }
   const tip = ev.target.closest("[data-tip]");
-  if (tip) { tutorAsk(tip.dataset.tip.replace(/: …$/, "")); return; }
+  if (tip) {
+    if (/…$/.test(tip.dataset.tip)) { const ta = document.querySelector("#tutorform textarea"); if (ta) { ta.value = tip.dataset.tip.replace(/…$/, ""); ta.focus(); } return; }
+    tutorAsk(tip.dataset.tip); return;
+  }
   if (ev.target.closest("[data-tutor-clear]")) { TUTOR = []; saveTutor(); render(); return; }
   if (ev.target.closest("[data-tutorout]")) { if (confirm("Вийти з ШІ-помічника на цьому пристрої?")) { setTutor(null); dropRole("tutor"); location.hash = "#/"; render(); } return; }
   if (ev.target.closest("[data-retask]")) {
