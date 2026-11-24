@@ -1615,3 +1615,8 @@ div.strip.small { display: block; }
 div.strip.small .strip-row a { display: inline-flex; align-items: center; gap: 6px; }
 div.strip.small .strip-tog { width: 26px; height: 26px; }
 div.strip.small .strip-more { font-size: 13px; font-weight: 500; }
+
+/* кнопка АвтоГДЗ прямо в картці ДЗ (лише в режимі ГДЗ) */
+.gdz-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: #2f6fe0;
+  padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, #3b82f6 12%, transparent); }
+.gdz-btn svg.i { width: 15px; height: 15px; vertical-align: 0; }

@@ -361,7 +361,7 @@ function card(e, { showSubj = true } = {}) {
         ${other.map((f) => `<a class="hw-file" href="${esc(f.path)}" target="_blank" rel="noopener" download="${esc(f.name)}">${ic("clip")} ${esc(f.title || f.name)}</a>`).join("")}`; })()}
     ${!e.alert && DSTATS[String(e.id)] && DSTATS[String(e.id)][0] ? `<p class="dstat">${ic("users")} ${DSTATS[String(e.id)][0]} з ${DSTATS[String(e.id)][1]} уже зробили</p>` : ""}
     ${!e.alert ? `<div class="hw-acts"><div class="card-tools">${noteBtn}${rem}${ADMIN_TOKEN && !e.alert ? `<label class="rem hw-attach" title="Додати фото чи файл до ДЗ" aria-label="Додати фото чи файл до ДЗ">${ic("clip")}<input type="file" data-hwfile="${esc(e.id)}" hidden></label>` : ""}${del}</div></div>` : ""}${commentsHtml(e)}
-    ${!e.alert ? `<div class="ex-row"><button type="button" class="link-btn ex-btn" data-explain="${esc(e.id)}">${ic("bulb")} Пояснення</button>${retellBtn(e)}</div>${retellBody(e)}` : ""}
+    ${!e.alert ? `<div class="ex-row">${GDZ_TOKEN && GDZ_TAGS.includes(e.tag) ? `<button type="button" class="link-btn gdz-btn" data-gdz="${esc(e.id)}">${ic("unlock")} АвтоГДЗ</button>` : ""}<button type="button" class="link-btn ex-btn" data-explain="${esc(e.id)}">${ic("bulb")} Пояснення</button>${retellBtn(e)}</div>${retellBody(e)}` : ""}
     ${photos ? `<div class="thumbs">${photos}</div>` : ""}
     ${taskHtml}
   </article>`;
@@ -2266,9 +2266,15 @@ function secretPage() {
   if (!GDZ_TOKEN) return lockForm("lock", "Вхід", "Введи пароль.");
   const tabs = `<div class="subtabs gdz-tabs" role="tablist">
     <button type="button" role="tab" data-gtab="tmr" aria-selected="${GDZ_TAB === "tmr"}">На завтра</button>
-    <button type="button" role="tab" data-gtab="all" aria-selected="${GDZ_TAB === "all"}">Усі ДЗ</button></div>`;
+    <button type="button" role="tab" data-gtab="all" aria-selected="${GDZ_TAB === "all"}">Усі ДЗ</button>
+    <button type="button" role="tab" data-gtab="past" aria-selected="${GDZ_TAB === "past"}">Було</button></div>`;
   let body;
-  if (GDZ_TAB === "all") {
+  if (GDZ_TAB === "past") {  // лише ДЗ, які вже здали (свіжіші — вгорі)
+    const t = today(), past = RAW.filter((e) => isMine(e) && e.due && e.due < t);
+    const days = [...new Set(past.map((e) => e.due))].sort().reverse();
+    body = days.map((d) => `<div class="day-h"><b>${cap(relDay(d))}</b><span>${longDay(d)}</span></div>
+      ${gdzSort(past.filter((e) => e.due === d)).map(gdzRow).join("")}`).join("") || `<div class="empty">Минулих ДЗ ще немає.</div>`;
+  } else if (GDZ_TAB === "all") {
     const t = today(), mine = RAW.filter((e) => isMine(e) && e.due);
     const days = [...new Set(mine.map((e) => e.due))];
     const order = [...days.filter((d) => d >= t).sort(), ...days.filter((d) => d < t).sort().reverse()];
