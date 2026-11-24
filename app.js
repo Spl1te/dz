@@ -570,21 +570,17 @@ function inSchoolTime() {
   return m >= toMin(first[0]) - 30 && m <= toMin(last[1]) + 10;
 }
 function alertBanner() {
-  // поза уроками тривога й прогноз — невеликим рядком, без подробиць
-  if (!inSchoolTime() && (ALERTS.now || (aiFresh() && !AIA.stale && AIA.risk >= 5))) {
-    return ALERTS.now
-      ? `<a class="strip strip-alert small" href="#/alerts">${ic("siren")} Тривога в Києві${aiFresh() && AIA.threat ? ` · ${esc(AIA.threat)}` : ""}</a>`
-      : `<a class="strip strip-risk small" href="#/alerts">${ic("warn")} Можлива тривога · ${AIA.risk}/10</a>`;
-  }
+  // поза уроками — та сама смужка, але менша (подробиці — за стрілочкою)
+  const sm = inSchoolTime() ? "" : " small";
   if (ALERTS.now) {
     const t = aiFresh() && AIA.threat ? ` · ${esc(AIA.threat)}` : "";
     const extra = [aiFresh() && AIA.end_min ? `За оцінкою ШІ ще ~${AIA.end_min} хв.` : "", aiFresh() && AIA.summary ? esc(AIA.summary) : ""].filter(Boolean).join(" ")
       + (aiFresh() ? aiTimes() : "");
-    return stripHtml("strip-alert", `${ic("siren")} Повітряна тривога в Києві${t}`, extra);
+    return stripHtml("strip-alert" + sm, `${ic("siren")} ${sm ? "Тривога" : "Повітряна тривога"} в Києві${t}`, extra);
   }
   if (aiFresh() && !AIA.stale && AIA.risk >= 5) {
     const extra = `${esc(AIA.summary || "")}${AIA.eta_min ? ` Орієнтовно через ${AIA.eta_min} хв.` : ""}<br><small>Неофіційно</small>${aiTimes()}`;
-    return stripHtml("strip-risk", `${ic("warn")} Можлива тривога · ${AIA.risk}/10${AIA.threat ? ` · ${esc(AIA.threat)}` : ""}`, extra);
+    return stripHtml("strip-risk" + sm, `${ic("warn")} Можлива тривога · ${AIA.risk}/10${AIA.threat ? ` · ${esc(AIA.threat)}` : ""}`, extra);
   }
   return "";
 }

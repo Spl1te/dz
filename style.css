@@ -1610,3 +1610,8 @@ p.dstat { margin: 6px 0 0; }
 .ev-when .dates { font-weight: 600; }
 .retell h4 { font-size: 15px; margin: 12px 0 4px; }
 .retell .md > :first-child { margin-top: 0; }
+/* зменшена смужка тривоги поза уроками — теж зі стрілочкою подробиць */
+div.strip.small { display: block; }
+div.strip.small .strip-row a { display: inline-flex; align-items: center; gap: 6px; }
+div.strip.small .strip-tog { width: 26px; height: 26px; }
+div.strip.small .strip-more { font-size: 13px; font-weight: 500; }
