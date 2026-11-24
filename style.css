@@ -1591,3 +1591,22 @@ p.dstat { margin: 6px 0 0; }
   padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
 .gdz-site-link span { color: var(--muted); font-size: 13px; flex: 1; min-width: 0; }
 .gdz-site-link svg.i { color: var(--muted); }
+
+/* ---------- «Пояснення» і «Переказ» під нотаткою для класу ---------- */
+.ex-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
+.rt-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+.rt-btn svg.i { width: 15px; height: 15px; vertical-align: 0; }
+.rt-btn svg.i:last-child { width: 13px; height: 13px; transition: transform .2s; }
+.rt-btn.on svg.i:last-child { transform: rotate(90deg); }
+.rt-make { color: #c48a00; }
+.rt-wait { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.rt-wait .spin { width: 14px; height: 14px; }
+.retell { margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--c, var(--accent)) 7%, var(--card));
+  border: 1px solid var(--line); animation: open-down .2s ease-out; font-size: 15px; line-height: 1.5; }
+.retell h3 { font-size: 15px; margin: 12px 0 4px; }
+/* тести: дата внизу, над «Тренувальним тестом» */
+.ev-when { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 14px; }
+.ev-when svg.i { width: 15px; height: 15px; color: var(--muted); }
+.ev-when .dates { font-weight: 600; }
+.retell h4 { font-size: 15px; margin: 12px 0 4px; }
+.retell .md > :first-child { margin-top: 0; }

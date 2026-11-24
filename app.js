@@ -360,8 +360,8 @@ function card(e, { showSubj = true } = {}) {
       return `${imgs.length ? `<div class="thumbs">${imgs.map((f) => `<button data-img="${esc(f.path)}" aria-label="Відкрити фото"><img src="${esc(f.path)}" loading="lazy" alt="${esc(f.title || "")}"></button>`).join("")}</div>` : ""}
         ${other.map((f) => `<a class="hw-file" href="${esc(f.path)}" target="_blank" rel="noopener" download="${esc(f.name)}">${ic("clip")} ${esc(f.title || f.name)}</a>`).join("")}`; })()}
     ${!e.alert && DSTATS[String(e.id)] && DSTATS[String(e.id)][0] ? `<p class="dstat">${ic("users")} ${DSTATS[String(e.id)][0]} з ${DSTATS[String(e.id)][1]} уже зробили</p>` : ""}
-    ${!e.alert ? `<div class="hw-acts"><div class="card-tools">${noteBtn}${rem}${ADMIN_TOKEN && !e.alert ? `<label class="rem hw-attach" title="Додати фото чи файл до ДЗ" aria-label="Додати фото чи файл до ДЗ">${ic("clip")}<input type="file" data-hwfile="${esc(e.id)}" hidden></label>` : ""}${del}</div>
-      <button type="button" class="link-btn ex-btn" data-explain="${esc(e.id)}">${ic("bulb")} Пояснення</button></div>` : ""}${commentsHtml(e)}
+    ${!e.alert ? `<div class="hw-acts"><div class="card-tools">${noteBtn}${rem}${ADMIN_TOKEN && !e.alert ? `<label class="rem hw-attach" title="Додати фото чи файл до ДЗ" aria-label="Додати фото чи файл до ДЗ">${ic("clip")}<input type="file" data-hwfile="${esc(e.id)}" hidden></label>` : ""}${del}</div></div>` : ""}${commentsHtml(e)}
+    ${!e.alert ? `<div class="ex-row"><button type="button" class="link-btn ex-btn" data-explain="${esc(e.id)}">${ic("bulb")} Пояснення</button>${retellBtn(e)}</div>${retellBody(e)}` : ""}
     ${photos ? `<div class="thumbs">${photos}</div>` : ""}
     ${taskHtml}
   </article>`;
@@ -864,11 +864,12 @@ function evCard(e) {
   const text = e.text && e.text.trim() !== e.title.trim() ? `<p class="hw">${linkify(e.text)}</p>` : "";
   return `<article class="card ev-card${done ? " is-done" : ""}" style="--c:${s.color}">
     <div class="head">${check}${e.tag ? `<a class="subj" href="#/s/${encodeURIComponent(e.tag)}">${esc(s.name)}</a>` : ""}
-      <span class="ev-kind k-${e.kind}">${EV_KINDS[e.kind] || ""}</span>${when}${del}</div>
+      <span class="ev-kind k-${e.kind}">${EV_KINDS[e.kind] || ""}</span>${del}</div>
     <p class="ev-title">${esc(e.title)}</p>${text}
     ${e.members ? `<p class="ev-members">${ic("users")} ${esc(e.members)}</p>` : ""}
     ${(e.tables || []).length ? `<details class="ev-tables"${soon && !done ? " open" : ""}><summary>${ic("book")} Таблиці з підручника · ${e.tables.length}</summary>
       ${e.tables.map((t) => `<figure><img src="${esc(t.img)}" data-img="${esc(t.img)}" alt="${esc(t.label)}" loading="lazy"><figcaption>${t.page ? `с. ${t.page}` : ""}</figcaption></figure>`).join("")}</details>` : ""}
+    ${when ? `<p class="ev-when">${ic("timer")} ${when}</p>` : ""}
     ${EV_TESTS.includes(e.kind) && e.tag && e.date >= today() ? `<button type="button" class="link-btn quiz-btn" data-quiz="${esc(e.tag)}" data-topic="${esc(e.title)}">${ic("spark")} Тренувальний тест</button>` : ""}
     ${e.link ? `<a class="ev-link" href="${esc(e.link)}" target="_blank" rel="noopener">${ic(e.kind === "online" ? "clip2" : "link")} ${e.kind === "online" ? "Відкрити тест" : "Відкрити посилання"} ${ic("ext")}</a>` : ""}
   </article>`;
@@ -1075,6 +1076,37 @@ function accountCard() {
 
 // ---------- нотатки для всього класу (з акаунтом; ШІ перевіряє, що це про ДЗ) ----------
 let COMMENTS = {}, CM_OPEN = null, CM_BUSY = false;
+// ---------- «Переказ» твору (укр. і зарубіжна література) ----------
+let RETELL = { done: {}, can: [] };
+const RT_OPEN = new Set(), RT_BUSY = {};
+const canAI = () => !!(ADMIN_TOKEN || AI_TOKEN || HELP_TOKEN || TUTOR_TOKEN);
+function retellBtn(e) {
+  const id = String(e.id), done = RETELL.done[id];
+  if (done) return `<button type="button" class="link-btn rt-btn${RT_OPEN.has(id) ? " on" : ""}" data-retell="${esc(id)}" aria-expanded="${RT_OPEN.has(id)}">${ic("book")} Переказ ${ic("chevR")}</button>`;
+  if (!canAI() || !RETELL.can.includes(id)) return "";
+  if (RT_BUSY[id] === "run") return `<span class="rt-wait"><i class="spin"></i>ШІ читає твір…</span>`;
+  return `<button type="button" class="link-btn rt-btn rt-make" data-retell-make="${esc(id)}">${ic("spark")} Переказ</button>`;
+}
+function retellBody(e) {
+  const id = String(e.id), d = RETELL.done[id];
+  const err = RT_BUSY[id] && RT_BUSY[id] !== "run" ? `<p class="err small-note">${esc(RT_BUSY[id])}</p>` : "";
+  if (!d || !RT_OPEN.has(id)) return err;
+  return `<div class="retell"><div class="md">${mdMath(d.md)}</div><p class="muted small-note">Переказ від ШІ за текстом підручника — може щось пропустити.</p></div>`;
+}
+async function retellMake(id) {
+  RT_BUSY[id] = "run"; safeRender();
+  const body = { id, admin: ADMIN_TOKEN, atoken: AI_TOKEN, htoken: HELP_TOKEN, ttoken: TUTOR_TOKEN };
+  try {
+    let j = await (await fetch("api/ai/retell", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json();
+    for (let n = 0; j.ok && j.status === "run" && n < 80; n++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      j = await (await fetch("api/ai/retell-status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) })).json();
+    }
+    if (j.status === "done") { RETELL.done[id] = { title: j.title, md: j.md }; RT_OPEN.add(id); delete RT_BUSY[id]; }
+    else RT_BUSY[id] = j.error || "Не вдалося — спробуй ще раз";
+  } catch { RT_BUSY[id] = "Немає звʼязку — спробуй ще раз"; }
+  safeRender();
+}
 function commentsHtml(e) {
   const id = String(e.id), list = COMMENTS[id] || [];
   if (e.alert) return "";
@@ -1674,7 +1706,7 @@ function tutorPage() {
     <form id="tutorform" class="tutor-form">
       ${TUTOR_PICS.length ? `<div class="tf-pics">${TUTOR_PICS.map((p, i) => `<span><img src="${p.thumb}" alt="Фото ${i + 1}"><button type="button" data-tpic-del="${i}" aria-label="Прибрати фото">${ic("x")}</button></span>`).join("")}</div>` : ""}
       <div class="tf-row"><label class="tf-cam" aria-label="Додати фото" title="Додати фото">${ic("camera")}<input type="file" accept="image/*" multiple hidden data-tpic ${TUTOR_BUSY ? "disabled" : ""}></label>
-      <textarea name="q" rows="1" maxlength="2000" placeholder="${TUTOR_PICS.length ? "Що зробити з фото? (можна не писати)" : "Напиши питання або додай фото…"}" ${TUTOR_BUSY ? "disabled" : ""}></textarea>
+      <textarea name="q" rows="1" maxlength="2000" placeholder="${TUTOR_PICS.length ? "Що зробити з фото? (можна не писати)" : "Напиши питання…"}" ${TUTOR_BUSY ? "disabled" : ""}></textarea>
       <button type="submit" class="tf-send" aria-label="Надіслати" ${TUTOR_BUSY || !TUTOR_PICS.length ? "disabled" : ""}>${TUTOR_BUSY ? `<i class="spin"></i>` : ic("up")}</button></div></form>
     ${TUTOR.length ? `<p class="muted small-note"><button type="button" class="link-btn" data-tutor-clear>Почати нову розмову</button> · <button type="button" class="link-btn" data-tutorout>Вийти з ШІ-помічника</button></p>` : ""}`;
 }
@@ -2872,6 +2904,10 @@ app.addEventListener("click", (ev) => {
     if (/…$/.test(tip.dataset.tip)) { const ta = document.querySelector("#tutorform textarea"); if (ta) { ta.value = tip.dataset.tip.replace(/…$/, ""); ta.focus(); } return; }
     tutorAsk(tip.dataset.tip); return;
   }
+  const rto = ev.target.closest("[data-retell]");
+  if (rto) { const id = rto.dataset.retell; RT_OPEN.has(id) ? RT_OPEN.delete(id) : RT_OPEN.add(id); render(); return; }
+  const rtm = ev.target.closest("[data-retell-make]");
+  if (rtm) { retellMake(rtm.dataset.retellMake); return; }
   const tdel = ev.target.closest("[data-tpic-del]");
   if (tdel) { TUTOR_PICS.splice(Number(tdel.dataset.tpicDel), 1); render(); return; }
   const tfull = ev.target.closest(".msg-pics img");
@@ -3525,6 +3561,7 @@ function applyBoot(b) {
   if (b.alert_ai && typeof b.alert_ai === "object") AIA = b.alert_ai;
   if (Array.isArray(b.events)) EVENTS = b.events;
   if (b.changes && typeof b.changes === "object") CHANGES = b.changes;
+  if (b.retell && typeof b.retell === "object") RETELL = { done: b.retell.done || {}, can: b.retell.can || [] };
   applyPref();
   return true;
 }
