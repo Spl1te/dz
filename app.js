@@ -860,6 +860,8 @@ function evCard(e) {
       <span class="ev-kind k-${e.kind}">${EV_KINDS[e.kind] || ""}</span>${when}${del}</div>
     <p class="ev-title">${esc(e.title)}</p>${text}
     ${e.members ? `<p class="ev-members">${ic("users")} ${esc(e.members)}</p>` : ""}
+    ${(e.tables || []).length ? `<details class="ev-tables"${soon && !done ? " open" : ""}><summary>${ic("book")} Таблиці з підручника · ${e.tables.length}</summary>
+      ${e.tables.map((t) => `<figure><img src="${esc(t.img)}" data-img="${esc(t.img)}" alt="${esc(t.label)}" loading="lazy"><figcaption>${t.page ? `с. ${t.page}` : ""}</figcaption></figure>`).join("")}</details>` : ""}
     ${EV_TESTS.includes(e.kind) && e.tag && e.date >= today() ? `<button type="button" class="link-btn quiz-btn" data-quiz="${esc(e.tag)}" data-topic="${esc(e.title)}">${ic("spark")} Тренувальний тест</button>` : ""}
     ${e.link ? `<a class="ev-link" href="${esc(e.link)}" target="_blank" rel="noopener">${ic(e.kind === "online" ? "clip2" : "link")} ${e.kind === "online" ? "Відкрити тест" : "Відкрити посилання"} ${ic("ext")}</a>` : ""}
   </article>`;
@@ -1665,8 +1667,8 @@ function tutorPage() {
     <form id="tutorform" class="tutor-form">
       ${TUTOR_PICS.length ? `<div class="tf-pics">${TUTOR_PICS.map((p, i) => `<span><img src="${p.thumb}" alt="Фото ${i + 1}"><button type="button" data-tpic-del="${i}" aria-label="Прибрати фото">${ic("x")}</button></span>`).join("")}</div>` : ""}
       <div class="tf-row"><label class="tf-cam" aria-label="Додати фото" title="Додати фото">${ic("camera")}<input type="file" accept="image/*" multiple hidden data-tpic ${TUTOR_BUSY ? "disabled" : ""}></label>
-      <textarea name="q" rows="2" maxlength="2000" placeholder="${TUTOR_PICS.length ? "Що зробити з фото? (можна не писати)" : "Напиши питання або додай фото…"}" ${TUTOR_BUSY ? "disabled" : ""}></textarea>
-      <button type="submit" aria-label="Надіслати" ${TUTOR_BUSY ? "disabled" : ""}>${ic("send")}</button></div></form>
+      <textarea name="q" rows="1" maxlength="2000" placeholder="${TUTOR_PICS.length ? "Що зробити з фото? (можна не писати)" : "Напиши питання або додай фото…"}" ${TUTOR_BUSY ? "disabled" : ""}></textarea>
+      <button type="submit" class="tf-send" aria-label="Надіслати" ${TUTOR_BUSY || !TUTOR_PICS.length ? "disabled" : ""}>${TUTOR_BUSY ? `<i class="spin"></i>` : ic("up")}</button></div></form>
     ${TUTOR.length ? `<p class="muted small-note"><button type="button" class="link-btn" data-tutor-clear>Почати нову розмову</button> · <button type="button" class="link-btn" data-tutorout>Вийти з ШІ-помічника</button></p>` : ""}`;
 }
 async function tutorAsk(q) {
@@ -2669,6 +2671,19 @@ document.querySelector(".top").addEventListener("click", (ev) => {
 
 // ---------- роутинг ----------
 const app = document.getElementById("app");
+// Кнопка «Надіслати» активна, лише коли є текст або фото
+app.addEventListener("input", (ev) => {
+  if (!ev.target.closest || !ev.target.closest("#tutorform")) return;
+  const b = document.querySelector("#tutorform .tf-send");
+  if (b && !TUTOR_BUSY) b.disabled = !ev.target.value.trim() && !TUTOR_PICS.length;
+  ev.target.style.height = "auto"; ev.target.style.height = Math.min(ev.target.scrollHeight, 160) + "px";
+});
+// Enter — надіслати, Shift+Enter — новий рядок (на компʼютері)
+app.addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter" || ev.shiftKey || ev.isComposing || !ev.target.closest || !ev.target.closest("#tutorform textarea")) return;
+  if (matchMedia("(pointer: coarse)").matches) return;
+  ev.preventDefault(); ev.target.form.requestSubmit();
+});
 // Вставити фото в чат помічника з буфера (Ctrl+V / «Вставити» на телефоні)
 app.addEventListener("paste", (ev) => {
   if (!ev.target.closest || !ev.target.closest("#tutorform")) return;

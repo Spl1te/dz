@@ -1545,3 +1545,29 @@ p.dstat { margin: 6px 0 0; }
   :root:not([data-theme="light"]) .drawer nav a.nav-admin { color: #7ee2a8; background: linear-gradient(135deg, #0f2e1d, #133a25); box-shadow: 0 0 0 1px #2c6b47; }
   :root:not([data-theme="light"]) .drawer nav a.nav-admin .ico { color: #5fd391; }
 }
+
+/* ---------- таблиці з підручника в картці тесту ---------- */
+.ev-tables { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+.ev-tables summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--accent); list-style: none; display: flex; align-items: center; gap: 6px; }
+.ev-tables summary::-webkit-details-marker { display: none; }
+.ev-tables summary::after { content: ""; width: 7px; height: 7px; border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg); margin-left: 2px; transition: transform .2s; }
+.ev-tables[open] summary::after { transform: rotate(-135deg); }
+.ev-tables figure { margin: 10px 0 0; }
+.ev-tables img { width: 100%; max-width: 640px; display: block; border-radius: 10px; background: #fff; border: 1px solid var(--line); cursor: zoom-in; }
+.ev-tables figcaption { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+/* ---------- поле чату ШІ-помічника: кругла золота кнопка «Надіслати» ---------- */
+.tutor-form { border-radius: 24px; padding: 6px; border: 1px solid var(--line); box-shadow: 0 6px 24px -6px rgb(0 0 0 / .18); }
+.tutor-form:focus-within { border-color: #e0a800; box-shadow: 0 0 0 3px rgba(242, 178, 30, .18), 0 6px 24px -6px rgb(0 0 0 / .18); }
+.tutor-form .tf-row { align-items: flex-end; gap: 4px; }
+.tutor-form textarea { padding: 9px 6px; line-height: 1.35; max-height: 160px; }
+.tutor-form .tf-cam { width: 40px; height: 40px; border-radius: 50%; background: transparent; }
+.tutor-form .tf-cam:hover { color: #c48a00; background: rgba(242, 178, 30, .14); }
+.tutor-form .tf-send { width: 40px; height: 40px; border-radius: 50%; flex: none; color: #fff;
+  background: linear-gradient(145deg, #f7c948, #e09b00); box-shadow: 0 3px 10px -2px rgba(224, 155, 0, .55);
+  transition: transform .12s ease, opacity .15s, box-shadow .15s, background .2s; }
+.tutor-form .tf-send svg.i { width: 20px; height: 20px; stroke-width: 2.4; }
+.tutor-form .tf-send:hover:not(:disabled) { box-shadow: 0 4px 14px -2px rgba(224, 155, 0, .7); }
+.tutor-form .tf-send:disabled { background: color-mix(in srgb, var(--muted) 30%, transparent); box-shadow: none; cursor: default; color: var(--card); }
+.tutor-form .tf-send .spin { width: 16px; height: 16px; border-color: rgba(255,255,255,.5); border-top-color: #fff; margin: 0; }
+.msg.user { background: linear-gradient(145deg, #f7c948, #e8a50c); color: #3a2800; }
