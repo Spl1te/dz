@@ -1472,3 +1472,17 @@ html.big #app, html.big .drawer, html.big .modal-card, html.big .bnav { zoom: 1.
 .pw-item em { font-style: normal; font-size: 12px; font-weight: 700; color: var(--admin); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .pw-item.on { border-color: var(--admin); background: var(--admin-soft); }
 .pw-item svg.i { vertical-align: 0; color: var(--muted); }
+
+/* шапка картки: лише галочка, предмет, група й дата; інструменти — унизу */
+.card .head { flex-wrap: nowrap; }
+.card .head .subj { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.subj .sn-short { display: none; }
+.subj.short .sn-full { display: none; }
+.subj.short .sn-short { display: inline; }
+.card .head .dates { white-space: nowrap; flex: none; }
+.hw-acts { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.card-tools { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.card-tools .rem { width: 34px; height: 34px; margin: 0; }
+.card-tools .adm-btns { display: inline-flex; gap: 4px; margin-left: 4px; }
+.card-tools .del { width: 34px; height: 30px; }
+p.dstat { margin: 6px 0 0; }

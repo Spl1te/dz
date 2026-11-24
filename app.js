@@ -109,6 +109,21 @@ const groupColor = (t) => (GROUPS.find(([, , tags]) => tags.includes(t)) || [])[
 const ALSO = { "ІсторіяУкр": ["ГО"] };
 const tagsOf = (t) => [t, ...(ALSO[t] || [])];
 const S = Object.fromEntries(SUBJECTS.map(([t, n, c]) => [t, { name: n, color: c }]));
+// Короткі назви — коли повна не вміщається в шапку картки
+const SHORT = { УкрМова: "Укр. мова", УкрЛіт: "Укр. літ.", Укр: "Укр. мова", Англ: "Англ. мова", Нім: "Нім. мова", Ісп: "Ісп. мова",
+  ІсторіяУкр: "Іст. України", ВсесвІст: "Всесв. іст.", ЗарЛіт: "Зар. літ.", Інформатика: "Інформ.", Технології: "Технол.",
+  Мистецтво: "Мистецтво", ФізРа: "Фізра", ГО: "Громад. осв.", ФГ: "Фін. грам.", Геогр: "Географія", Біологія: "Біологія",
+  Геометрія: "Геометрія", Алгебра: "Алгебра", Фізика: "Фізика", Хімія: "Хімія", ЗБД: "ЗБД" };
+const subjShort = (t) => SHORT[t] || (S[t] ? S[t].name : t);
+// після показу: якщо повна назва предмета не вміщається — показати коротку
+function fitSubjects() {
+  document.querySelectorAll("#app .card .subj").forEach((a) => {
+    a.classList.remove("short");
+    const full = a.querySelector(".sn-full");
+    if (full && a.scrollWidth > a.clientWidth + 1) a.classList.add("short");
+  });
+}
+addEventListener("resize", () => fitSubjects());
 const subj = (t) => S[t] || { name: t || "Загальне", color: "#868e96" };
 
 const WD = ["неділя", "понеділок", "вівторок", "середа", "четвер", "пʼятниця", "субота"];
@@ -296,7 +311,7 @@ function card(e, { showSubj = true } = {}) {
   const s = subj(e.tag);
   if (e.alert) {
     return `<article class="card alert-card" style="--c:${s.color}">
-    <div class="head">${showSubj ? `<a class="subj" href="#/s/${encodeURIComponent(e.tag)}">${esc(s.name)}<i class="gdot" style="--g:${groupColor(e.tag)}"></i></a>` : "<span></span>"}
+    <div class="head">${showSubj ? `<a class="subj" href="#/s/${encodeURIComponent(e.tag)}" title="${esc(s.name)}"><span class="sn-full">${esc(s.name)}</span><span class="sn-short">${esc(subjShort(e.tag))}</span><i class="gdot" style="--g:${groupColor(e.tag)}"></i></a>` : "<span></span>"}
       <span class="dates">${e.n} урок ${short(e.given)}${e.due ? ` <span class="arr">${ic("arrow")}</span> здати ${short(e.due)}` : ""}</span></div>
     <p class="hw"><b>${ic("siren")} Була тривога!</b> ДЗ не задавали · ${e.pct}% уроку під тривогою</p>
   </article>`;
@@ -324,8 +339,8 @@ function card(e, { showSubj = true } = {}) {
     ? `<button type="button" class="rem${REM[e.id] ? " on" : ""}" data-rem="${esc(e.id)}" aria-label="${REM[e.id] ? `Нагадування о ${hm(REM[e.id])} — скасувати` : "Нагадати"}" title="${REM[e.id] ? `Нагадаю ${hm(REM[e.id])}` : "Нагадати о 18:00"}">${ic(REM[e.id] ? "bellon" : "bell")}</button>` : "";
   const check = `<button type="button" class="check" data-done="${esc(e.id)}" role="checkbox" aria-checked="${done}" aria-label="${done ? "Повернути в невиконане" : "Позначити виконаним"}"></button>`;
   return `<article class="card${done ? " is-done" : ""}${isMine(e) ? "" : " not-mine"}" style="--c:${s.color}">
-    <div class="head">${check}${showSubj ? `<a class="subj" href="#/s/${encodeURIComponent(e.tag)}">${esc(s.name)}<i class="gdot" style="--g:${groupColor(e.tag)}"></i></a>` : "<span></span>"}
-      ${g ? `<span class="grp">${esc(g)}</span>` : ""}<span class="dates" title="${datesFull}">${dates}</span>${noteBtn}${rem}${ADMIN_TOKEN && !e.alert ? `<label class="rem hw-attach" title="Додати фото чи файл до ДЗ" aria-label="Додати фото чи файл до ДЗ">${ic("clip")}<input type="file" data-hwfile="${esc(e.id)}" hidden></label>` : ""}${del}</div>
+    <div class="head">${check}${showSubj ? `<a class="subj" href="#/s/${encodeURIComponent(e.tag)}" title="${esc(s.name)}"><span class="sn-full">${esc(s.name)}</span><span class="sn-short">${esc(subjShort(e.tag))}</span><i class="gdot" style="--g:${groupColor(e.tag)}"></i></a>` : "<span></span>"}
+      ${g ? `<span class="grp">${esc(g)}</span>` : ""}<span class="dates" title="${datesFull}">${dates}</span></div>
     ${ADMIN_TOKEN && EDIT_ID === String(e.id) ? `<form id="edit-form" class="edit-form" data-id="${esc(e.id)}">
       <label>Текст ДЗ<textarea name="hw" rows="4" required>${esc(e.homework)}</textarea></label>
       <label>Здати<input type="date" name="due" value="${esc(e.due || "")}"></label>
@@ -336,7 +351,8 @@ function card(e, { showSubj = true } = {}) {
       const imgs = at.filter((f) => isImg(f.path) && !/\.heic$/i.test(f.path)), other = at.filter((f) => !imgs.includes(f));
       return `${imgs.length ? `<div class="thumbs">${imgs.map((f) => `<button data-img="${esc(f.path)}" aria-label="Відкрити фото"><img src="${esc(f.path)}" loading="lazy" alt="${esc(f.title || "")}"></button>`).join("")}</div>` : ""}
         ${other.map((f) => `<a class="hw-file" href="${esc(f.path)}" target="_blank" rel="noopener" download="${esc(f.name)}">${ic("clip")} ${esc(f.title || f.name)}</a>`).join("")}`; })()}
-    ${!e.alert ? `<div class="hw-acts">${DSTATS[String(e.id)] && DSTATS[String(e.id)][0] ? `<span class="dstat">${ic("users")} ${DSTATS[String(e.id)][0]} з ${DSTATS[String(e.id)][1]} уже зробили</span>` : "<span></span>"}
+    ${!e.alert && DSTATS[String(e.id)] && DSTATS[String(e.id)][0] ? `<p class="dstat">${ic("users")} ${DSTATS[String(e.id)][0]} з ${DSTATS[String(e.id)][1]} уже зробили</p>` : ""}
+    ${!e.alert ? `<div class="hw-acts"><div class="card-tools">${noteBtn}${rem}${ADMIN_TOKEN && !e.alert ? `<label class="rem hw-attach" title="Додати фото чи файл до ДЗ" aria-label="Додати фото чи файл до ДЗ">${ic("clip")}<input type="file" data-hwfile="${esc(e.id)}" hidden></label>` : ""}${del}</div>
       <button type="button" class="link-btn ex-btn" data-explain="${esc(e.id)}">${ic("bulb")} Пояснення</button></div>` : ""}${commentsHtml(e)}
     ${photos ? `<div class="thumbs">${photos}</div>` : ""}
     ${taskHtml}
@@ -2665,6 +2681,7 @@ function render() {
   else html = home();
   app.innerHTML = offBar() + html;
   document.body.classList.toggle("tab-home", tab === "home");
+  fitSubjects();
   checkAch();
   if (tab !== LAST_TAB) {
     app.classList.remove("fade"); void app.offsetWidth; app.classList.add("fade"); LAST_TAB = tab;
