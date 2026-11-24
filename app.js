@@ -14,6 +14,7 @@ const ICONS = {
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   dots: '<circle cx="5.5" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="18.5" cy="12" r="1.2" fill="currentColor"/>',
   dotsV: '<circle cx="12" cy="5.5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="18.5" r="1.2" fill="currentColor"/>',
+  camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3.5"/>',
   clip2: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
   rocket: '<path d="M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2.2 2.2 0 0 0-2.9-.1z"/><path d="m12 15-3-3a22 22 0 0 1 2-4A13 13 0 0 1 22 2c0 2.7-.8 7.5-6 11a22 22 0 0 1-4 2z"/><path d="M9 12H4s.6-3 2-4c1.6-1.1 5 0 5 0M12 15v5s3-.6 4-2c1.1-1.6 0-5 0-5"/>',
   link: '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
@@ -1621,23 +1622,64 @@ function setTutor(t) {
   TUTOR_TOKEN = t;
   try { if (t) localStorage.setItem("dz-tutor", t); else localStorage.removeItem("dz-tutor"); } catch { /* */ }
 }
-const saveTutor = () => { try { localStorage.setItem("dz-tutor-chat", JSON.stringify(TUTOR.slice(-40))); } catch { /* */ } };
+const saveTutor = () => {
+  const keep = TUTOR.slice(-40);
+  try { localStorage.setItem("dz-tutor-chat", JSON.stringify(keep)); }
+  catch { try { localStorage.setItem("dz-tutor-chat", JSON.stringify(keep.map(({ img, ...m }) => (img ? { ...m, text: `[фото] ${m.text}` } : m)))); } catch { /* */ } }
+};
+let TUTOR_PICS = []; // фото до наступного повідомлення: {full, thumb}
+// Стиснути фото в JPEG: max — довша сторона в пікселях
+function shrinkImage(file, max, q) {
+  return new Promise((ok, bad) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); ok(c.toDataURL("image/jpeg", q));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); bad(new Error("Не вдалося відкрити фото")); };
+    img.src = url;
+  });
+}
+async function tutorAddPics(files) {
+  const list = [...files].filter((f) => f.type.startsWith("image/"));
+  for (const f of list) {
+    if (TUTOR_PICS.length >= 3) { toast("Не більше 3 фото за раз"); break; }
+    try { TUTOR_PICS.push({ full: await shrinkImage(f, 1600, 0.85), thumb: await shrinkImage(f, 220, 0.6) }); }
+    catch (e) { toast(e.message); }
+  }
+  const ta = document.querySelector("#tutorform textarea"), keep = ta ? ta.value : "";
+  render();
+  const ta2 = document.querySelector("#tutorform textarea"); if (ta2) { ta2.value = keep; ta2.focus(); }
+}
 function tutorPage() {
   if (!TUTOR_TOKEN) return lockForm("lock", "ШІ-помічник", "Введи пароль ШІ-помічника.");
   const tips = ["Поясни тему, яку ми зараз проходимо з алгебри", "Що в мене на завтра і з чого почати?", "Підготуй мене до найближчої контрольної", "Перевір мій розвʼязок: …", "Підготуй мене до тесту за посиланням: …"];
-  return `<h1>ШІ-помічник</h1><p class="sub">Знає твоє ДЗ, тести й підручники — сам заглядає в потрібні сторінки. Скинь посилання на тест — подивиться й підготує. Пояснює, а не просто дає відповіді.</p>
-    <div class="tutor">${TUTOR.length ? TUTOR.map((m) => `<div class="msg ${m.role}">${m.role === "user" ? esc(m.text) : `<div class="md">${mdMath(m.text)}</div>`}</div>`).join("")
+  const pics = (m) => (m.img || []).length ? `<div class="msg-pics">${m.img.map((t) => `<img src="${t}" alt="Фото" data-full="${t}">`).join("")}</div>` : "";
+  return `<h1>ШІ-помічник</h1><p class="sub">Знає твоє ДЗ, тести й підручники — сам заглядає в потрібні сторінки. Скинь фото (сторінку, зошит, скрін тесту) чи посилання на тест — подивиться й допоможе. Пояснює, а не просто дає відповіді.</p>
+    <div class="tutor">${TUTOR.length ? TUTOR.map((m) => `<div class="msg ${m.role}">${m.role === "user" ? pics(m) + esc(m.text) : `<div class="md">${mdMath(m.text)}</div>`}</div>`).join("")
       : `<div class="tutor-tips">${tips.map((t) => `<button type="button" class="chip-btn" data-tip="${esc(t)}">${esc(t)}</button>`).join("")}</div>`}
       ${TUTOR_BUSY ? `<p class="gdz-wait"><i class="spin"></i>Думаю… (до хвилини)</p>` : ""}</div>
-    <form id="tutorform" class="tutor-form"><textarea name="q" rows="2" maxlength="2000" required placeholder="Напиши питання…" ${TUTOR_BUSY ? "disabled" : ""}></textarea>
-      <button type="submit" ${TUTOR_BUSY ? "disabled" : ""}>${ic("send")}</button></form>
+    <form id="tutorform" class="tutor-form">
+      ${TUTOR_PICS.length ? `<div class="tf-pics">${TUTOR_PICS.map((p, i) => `<span><img src="${p.thumb}" alt="Фото ${i + 1}"><button type="button" data-tpic-del="${i}" aria-label="Прибрати фото">${ic("x")}</button></span>`).join("")}</div>` : ""}
+      <div class="tf-row"><label class="tf-cam" aria-label="Додати фото" title="Додати фото">${ic("camera")}<input type="file" accept="image/*" multiple hidden data-tpic ${TUTOR_BUSY ? "disabled" : ""}></label>
+      <textarea name="q" rows="2" maxlength="2000" placeholder="${TUTOR_PICS.length ? "Що зробити з фото? (можна не писати)" : "Напиши питання або додай фото…"}" ${TUTOR_BUSY ? "disabled" : ""}></textarea>
+      <button type="submit" aria-label="Надіслати" ${TUTOR_BUSY ? "disabled" : ""}>${ic("send")}</button></div></form>
     ${TUTOR.length ? `<p class="muted small-note"><button type="button" class="link-btn" data-tutor-clear>Почати нову розмову</button> · <button type="button" class="link-btn" data-tutorout>Вийти з ШІ-помічника</button></p>` : ""}`;
 }
 async function tutorAsk(q) {
-  if (!q || TUTOR_BUSY) return;
-  TUTOR.push({ role: "user", text: q }); TUTOR_BUSY = true; saveTutor(); render();
+  if (TUTOR_BUSY) return;
+  const pics = TUTOR_PICS;
+  if (!q && !pics.length) return;
+  if (!q) q = pics.length > 1 ? "Подивись ці фото" : "Подивись фото";
+  const msg = { role: "user", text: q };
+  if (pics.length) msg.img = pics.map((p) => p.thumb);
+  TUTOR.push(msg); TUTOR_PICS = []; TUTOR_BUSY = true; saveTutor(); render();
   try {
-    const r = await fetch("api/ai/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ttoken: TUTOR_TOKEN, messages: TUTOR, pref: pref() }) });
+    const messages = TUTOR.map((m) => ({ role: m.role, text: m.img ? `[${m.img.length} фото] ${m.text}` : m.text }));
+    const r = await fetch("api/ai/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ttoken: TUTOR_TOKEN, messages, photos: pics.map((p) => p.full), pref: pref() }) });
     const j = await r.json();
     if (j.need_password) { setTutor(null); TUTOR.pop(); throw new Error("Потрібен пароль ще раз"); }
     if (!j.ok) throw new Error(j.error || "Не вдалося");
@@ -2625,7 +2667,14 @@ document.querySelector(".top").addEventListener("click", (ev) => {
 
 // ---------- роутинг ----------
 const app = document.getElementById("app");
+// Вставити фото в чат помічника з буфера (Ctrl+V / «Вставити» на телефоні)
+app.addEventListener("paste", (ev) => {
+  if (!ev.target.closest || !ev.target.closest("#tutorform")) return;
+  const files = [...(ev.clipboardData ? ev.clipboardData.files : [])].filter((f) => f.type.startsWith("image/"));
+  if (files.length) { ev.preventDefault(); tutorAddPics(files); }
+});
 app.addEventListener("change", async (ev) => {
+  if (ev.target.dataset && "tpic" in ev.target.dataset) { const f = [...ev.target.files]; ev.target.value = ""; tutorAddPics(f); return; }
   if (ev.target.dataset && ev.target.dataset.hwfile) {
     const file = ev.target.files[0], hw = ev.target.dataset.hwfile;
     if (!file) return;
@@ -2776,6 +2825,10 @@ app.addEventListener("click", (ev) => {
     if (/…$/.test(tip.dataset.tip)) { const ta = document.querySelector("#tutorform textarea"); if (ta) { ta.value = tip.dataset.tip.replace(/…$/, ""); ta.focus(); } return; }
     tutorAsk(tip.dataset.tip); return;
   }
+  const tdel = ev.target.closest("[data-tpic-del]");
+  if (tdel) { TUTOR_PICS.splice(Number(tdel.dataset.tpicDel), 1); render(); return; }
+  const tfull = ev.target.closest(".msg-pics img");
+  if (tfull) { openViewer(tfull.dataset.full, tfull); return; }
   if (ev.target.closest("[data-tutor-clear]")) { TUTOR = []; saveTutor(); render(); return; }
   if (ev.target.closest("[data-tutorout]")) { if (confirm("Вийти з ШІ-помічника на цьому пристрої?")) { setTutor(null); dropRole("tutor"); location.hash = "#/"; render(); } return; }
   if (ev.target.closest("[data-retask]")) {

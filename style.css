@@ -1518,3 +1518,19 @@ p.dstat { margin: 6px 0 0; }
 }
 .nav-top-gap { height: 1px; background: var(--line, rgba(127,127,127,.2)); margin: 6px 8px 8px; }
 .nav-top-gap[hidden] { display: none; }
+
+/* ---------- фото в чаті ШІ-помічника ---------- */
+.tutor-form { flex-direction: column; align-items: stretch; }
+.tutor-form .tf-row { display: flex; gap: 8px; align-items: flex-end; }
+.tutor-form .tf-cam { width: 42px; height: 42px; flex: none; border-radius: 12px; display: grid; place-items: center; cursor: pointer;
+  color: var(--muted); background: color-mix(in srgb, var(--muted) 12%, transparent); transition: color .15s, background-color .15s; }
+.tutor-form .tf-cam:hover { color: #7048e8; background: color-mix(in srgb, #7048e8 12%, transparent); }
+.tf-pics { display: flex; gap: 8px; padding: 2px 2px 4px; overflow-x: auto; }
+.tf-pics span { position: relative; flex: none; animation: pop-in .18s ease-out; }
+.tf-pics img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; display: block; border: 1px solid var(--line); }
+.tutor-form .tf-pics button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; padding: 0;
+  background: var(--text); color: var(--bg); border: 2px solid var(--card); }
+.tutor-form .tf-pics button svg.i { width: 12px; height: 12px; }
+.msg-pics { display: flex; gap: 6px; flex-wrap: wrap; margin: -2px 0 6px; }
+.msg-pics img { width: 84px; height: 84px; object-fit: cover; border-radius: 10px; cursor: zoom-in; border: 1px solid rgba(255,255,255,.35); }
+@keyframes pop-in { from { transform: scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
