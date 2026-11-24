@@ -2127,7 +2127,8 @@ function settingsPage() {
     <h2>Вигляд</h2><div class="set-list"><div class="set-row set-theme"><span>Тема<small>«За часом» — темна з 20:00 до 07:00</small></span>${themeSeg}</div>
       <div class="set-row set-theme"><span>Колір</span><div class="accents">${[["blue", "Синій"], ["green", "Зелений"], ["purple", "Фіолетовий"], ["pink", "Рожевий"], ["orange", "Помаранчевий"]]
         .map(([v, t]) => `<button type="button" class="acc-dot a-${v}" data-accent-set="${v}" aria-pressed="${(SET.accent || "blue") === v}" aria-label="${t}" title="${t}"></button>`).join("")}</div></div>
-      ${sw("bigFont", "Великий шрифт", "Текст і кнопки трохи більші")}</div>
+      ${sw("bigFont", "Великий шрифт", "Текст і кнопки трохи більші")}
+      ${sw("hideModebar", "Сховати смужку режиму", "Плашки «Адмін-режим», «Режим ГДЗ», «ШІ» під шапкою. Режими працюють, як і раніше")}</div>
     <h2>Головна</h2><div class="set-list">
       ${sw("showDebts", "Показувати борги на головній", `Усі борги завжди є в ${ic("dots")} ${ic("arrow")} Борги`)}
       ${sw("hideDebtCount", "Не показувати число боргів", `Ні в меню, ні червоною крапкою на ${ic("dots")}`)}
@@ -2470,7 +2471,7 @@ function infoPage() {
     <ul>
       <li>Біля заголовка «Ще»: ${G} <b>Налаштування</b> і ${ic("info")} <b>Інфо</b>. Лупа ${ic("search")} у шапці — <b>пошук</b> по всьому сайту.</li>
       <li><b>Основне:</b> Предмети · Виконане · Борги · Тривоги · Відвідування · Оцінки.</li>
-      <li><b>Додаткове:</b> Тести · Проєкти · Картки · Досягнення · Файли · Розсадка · Дні народження. АвтоГДЗ і ШІ-помічник (золотий), якщо увімкнено, — на самому верху меню, над «Предметами».</li>
+      <li><b>Додаткове:</b> Тести · Проєкти · Картки · Досягнення · Файли · Розсадка · Дні народження. Адмінпанель (зелена), ШІ-помічник (золотий) і АвтоГДЗ, якщо увімкнено, — на самому верху меню, над «Предметами». Смужку режиму під шапкою можна сховати в Налаштуваннях → Вигляд.</li>
       <li><b>Предмети</b> — плитки, пошук ДЗ, сторінка предмета: учитель, найближчі уроки, підручник, файли й конспекти, ДЗ (невиконані / виконані).</li>
       <li><b>Борги</b> — прострочене невиконане ДЗ (від 9.11.2026), фільтр за предметом і кнопка <b>«Виконане все»</b>
         (з вибраним предметом — лише його).</li>
@@ -2647,11 +2648,12 @@ function syncChrome(tab) {
   document.getElementById("admin-badge").hidden = !ADMIN_TOKEN;
   document.getElementById("gdz-badge").hidden = !GDZ_TOKEN;
   document.getElementById("gdz-ai-mark").textContent = AI_TOKEN ? " + ШІ" : "";
-  document.getElementById("modebar").hidden = !ADMIN_TOKEN && !GDZ_TOKEN && !TUTOR_TOKEN;
+  document.getElementById("modebar").hidden = (!ADMIN_TOKEN && !GDZ_TOKEN && !TUTOR_TOKEN) || !!SET.hideModebar;
+  document.getElementById("admin-link").hidden = !ADMIN_TOKEN;
   document.getElementById("tutor-badge").hidden = !TUTOR_TOKEN;
   document.getElementById("tutor-link").hidden = !TUTOR_TOKEN;
   document.getElementById("secret-link").hidden = !GDZ_TOKEN;
-  document.getElementById("nav-top-gap").hidden = !GDZ_TOKEN && !TUTOR_TOKEN;
+  document.getElementById("nav-top-gap").hidden = !GDZ_TOKEN && !TUTOR_TOKEN && !ADMIN_TOKEN;
   document.body.classList.toggle("mode-admin", !!ADMIN_TOKEN);
   document.body.classList.toggle("mode-gdz", !!GDZ_TOKEN);
   const n = debts().length;

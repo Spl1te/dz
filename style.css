@@ -1534,3 +1534,14 @@ p.dstat { margin: 6px 0 0; }
 .msg-pics { display: flex; gap: 6px; flex-wrap: wrap; margin: -2px 0 6px; }
 .msg-pics img { width: 84px; height: 84px; object-fit: cover; border-radius: 10px; cursor: zoom-in; border: 1px solid rgba(255,255,255,.35); }
 @keyframes pop-in { from { transform: scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ---------- Адмінпанель у меню — зелена ---------- */
+.drawer nav a.nav-admin { color: #157347; background: linear-gradient(135deg, #e3f7ea, #ccf0d9); box-shadow: 0 0 0 1px #8fd5a8; margin-bottom: 4px; }
+.drawer nav a.nav-admin .ico { color: #1f9d55; }
+.drawer nav a.nav-admin.on { box-shadow: 0 0 0 2px #1f9d55; }
+:root[data-theme="dark"] .drawer nav a.nav-admin { color: #7ee2a8; background: linear-gradient(135deg, #0f2e1d, #133a25); box-shadow: 0 0 0 1px #2c6b47; }
+:root[data-theme="dark"] .drawer nav a.nav-admin .ico { color: #5fd391; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .drawer nav a.nav-admin { color: #7ee2a8; background: linear-gradient(135deg, #0f2e1d, #133a25); box-shadow: 0 0 0 1px #2c6b47; }
+  :root:not([data-theme="light"]) .drawer nav a.nav-admin .ico { color: #5fd391; }
+}
