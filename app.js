@@ -950,7 +950,7 @@ function applyData(d) {
   if (d.rem && typeof d.rem === "object") { REM = d.rem; ls("dz-rem", REM); }
   if (d.set && typeof d.set === "object") { SET = { ...SET_DEFAULT, ...d.set }; ls(SET_KEY, SET); applyTheme(); }
   if (d.pref && [1, 2].includes(d.pref.ukr)) { PREF = withGroup(d.pref); ls(PREF_KEY, PREF); }
-  if (d.cards && Array.isArray(d.cards.decks)) { CARDS = d.cards; ls("dz-cards", CARDS); }
+  if (d.cards && Array.isArray(d.cards.decks)) { CARDS = d.cards; ls("dz-cards", CARDS); setTimeout(loadClassDecks, 0); }
   if (d.ach && typeof d.ach === "object") { ACH = d.ach; ls("dz-ach", ACH); }
   if (d.doneAt && typeof d.doneAt === "object") { DONE_AT = d.doneAt; ls("dz-done-at", DONE_AT); }
   if (d.quiz && typeof d.quiz === "object") { QUIZ = d.quiz; ls("dz-quiz", QUIZ); }
@@ -1916,6 +1916,28 @@ function parseCards(text) {
   return String(text || "").split("\n").map((l) => l.split(/\s+[—–-]\s+|\t|\s*=\s*/)).filter((p) => p.length >= 2 && p[0].trim() && p[1].trim())
     .map(([f, ...b]) => ({ f: f.trim().slice(0, 150), b: b.join(" — ").trim().slice(0, 200), box: 0 })).slice(0, 200);
 }
+// Спільні колоди «Від класу» (site/decks.json): зʼявляються в кожного, прогрес «знаю» — свій; тимчасові (до until)
+async function loadClassDecks() {
+  let j = null;
+  try { const r = await fetch(`decks.json?d=${today()}`); if (r.ok) j = await r.json(); } catch { return; }
+  if (!j || !Array.isArray(j.decks)) return;
+  const live = j.until && today() > j.until ? [] : j.decks, hidden = CARDS.hidden || [];
+  let changed = false;
+  const before = CARDS.decks.length;
+  CARDS.decks = CARDS.decks.filter((d) => !d.cls || live.some((x) => x.id === d.id));
+  if (CARDS.decks.length !== before) changed = true;
+  for (const x of live) {
+    if (hidden.includes(x.id)) continue;
+    const mine = CARDS.decks.find((d) => d.id === x.id);
+    const box = Object.fromEntries(((mine && mine.cards) || []).map((c) => [c.f, c.box || 0]));
+    const cards = x.cards.map((c) => ({ f: c.f, b: c.b, box: box[c.f] || 0 }));
+    if (!mine) { CARDS.decks.unshift({ id: x.id, title: x.title, tag: x.tag || "", cls: true, cards }); changed = true; }
+    else if (JSON.stringify(mine.cards.map((c) => [c.f, c.b])) !== JSON.stringify(cards.map((c) => [c.f, c.b])) || mine.title !== x.title) {
+      Object.assign(mine, { title: x.title, cards, cls: true }); changed = true;
+    }
+  }
+  if (changed) { saveCards(); if ((location.hash.slice(1) || "/") === "/cards") safeRender(); }
+}
 function startStudy(id) {
   const deck = CARDS.decks.find((d) => d.id === id);
   if (!deck || !deck.cards.length) return;
@@ -1927,7 +1949,7 @@ function cardsPage() {
   const opts = ORDER.filter((t) => t !== "Укр").map((t) => `<option value="${t}"${t === CARD_TAG ? " selected" : ""}>${esc(subj(t).name)}</option>`).join("");
   const decks = CARDS.decks.map((d) => {
     const known = d.cards.filter((c) => (c.box || 0) >= 3).length;
-    return `<article class="deck" style="--c:${d.tag ? subj(d.tag).color : "var(--accent)"}"><div class="deck-h"><b>${esc(d.title)}</b>
+    return `<article class="deck" style="--c:${d.tag ? subj(d.tag).color : "var(--accent)"}"><div class="deck-h"><b>${esc(d.title)}${d.cls ? ` <span class="deck-cls">Від класу</span>` : ""}</b>
       <button type="button" class="del" data-deck-del="${esc(d.id)}" aria-label="Видалити колоду">${ic("trash")}</button></div>
       <span class="muted">${d.tag ? esc(subj(d.tag).name) + " · " : ""}${d.cards.length} карток · знаю ${known}</span>
       <div class="deck-bar"><i style="width:${d.cards.length ? Math.round((100 * known) / d.cards.length) : 0}%"></i></div>
@@ -2928,7 +2950,14 @@ app.addEventListener("click", (ev) => {
   const stb = ev.target.closest("[data-study]");
   if (stb) { startStudy(stb.dataset.study); return; }
   const dd = ev.target.closest("[data-deck-del]");
-  if (dd) { if (confirm("Видалити колоду?")) { CARDS.decks = CARDS.decks.filter((d) => d.id !== dd.dataset.deckDel); saveCards(); render(); } return; }
+  if (dd) {
+    if (confirm("Видалити колоду?")) {
+      const id = dd.dataset.deckDel, d = CARDS.decks.find((x) => x.id === id);
+      if (d && d.cls) CARDS.hidden = [...(CARDS.hidden || []), id]; // спільну колоду більше не додаємо
+      CARDS.decks = CARDS.decks.filter((x) => x.id !== id); saveCards(); render();
+    }
+    return;
+  }
   const hb = ev.target.closest("[data-heart]");
   if (hb) {
     if (!ACC.token) { showToast("Щоб ставити ♥, увійди через Telegram"); return; }
@@ -3586,6 +3615,7 @@ function firstShow() {
   } catch { /* немає збереженої копії */ }
 })();
 async function boot() {
+  loadClassDecks();
   const b = await get("data/boot.json", null);
   if (b && applyBoot(b)) {
     try { localStorage.setItem("dz-boot", JSON.stringify({ at: Date.now(), b })); } catch { /* замало місця — не страшно */ }

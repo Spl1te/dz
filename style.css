@@ -1620,3 +1620,6 @@ div.strip.small .strip-more { font-size: 13px; font-weight: 500; }
 .gdz-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: #2f6fe0;
   padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, #3b82f6 12%, transparent); }
 .gdz-btn svg.i { width: 15px; height: 15px; vertical-align: 0; }
+
+.deck-cls { display: inline-block; vertical-align: 2px; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  color: var(--c, var(--accent)); background: color-mix(in srgb, var(--c, var(--accent)) 14%, transparent); }
